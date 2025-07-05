@@ -1,0 +1,128 @@
+# EnemyBar Enhanced - .gitignore
+
+# User-specific settings and data
+settings.xml
+data/
+
+# Windower-specific files
+*.log
+*.cache
+*.tmp
+
+# User configuration backups
+settings_backup_*.xml
+config_*.xml
+
+# Development and testing files
+test/
+tests/
+debug/
+*.debug
+debug_*.lua
+
+# IDE and editor files
+.vscode/
+.idea/
+*.sublime-*
+.atom/
+*.code-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.swp
+*.swo
+*~
+.tmp/
+temp/
+
+# Backup files
+*.bak
+*.backup
+*.old
+*_backup
+*_old
+
+# Documentation build files
+docs/_build/
+*.pdf
+*.docx
+
+# Archive files (unless specifically needed)
+*.zip
+*.rar
+*.7z
+*.tar.gz
+
+# Local development environment
+local/
+private/
+personal/
+
+# Error logs and crash dumps
+error.log
+crash_*.log
+*.dmp
+*.stackdump
+
+# Performance profiling data
+*.prof
+profile_*.txt
+
+# User customizations that shouldn't be shared
+custom_*.lua
+personal_*.lua
+my_*.lua
+
+# Character-specific files (these contain personal data)
+*_settings.xml
+char_*.xml
+
+# Compiled Lua bytecode (if any)
+*.luac
+
+# Node.js / npm (if used for build tools)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python (if used for scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+
+# Any local documentation or notes
+TODO.md
+NOTES.md
+local_readme.txt
+
+# Screenshots and recordings (too large for git)
+screenshots/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.avi
+
+# Exception: Keep essential image assets
+!bg_cap.png
+!bg_body.png
+!fg_body.png
+!target.png
+!attention.png
+!icons/
+!icons/*.png
