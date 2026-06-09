@@ -44,6 +44,7 @@ local EnemyBar = {
         focustarget = nil,
         in_cs = false,
         last_update = 0,
+        last_claim_scan = 0,
         cleanup_counter = 0
     },
     cache = {
@@ -417,7 +418,7 @@ function EnemyBar:updateAggroBars(show)
         end
     else
         local filter_settings = self:getContextAppropriateFilter()
-        local smart_aggro = ActionTracker:getSmartAggroList(settings.aggro_bar.count, filter_settings)
+        local smart_aggro = ActionTracker:getSmartAggroList(settings.aggro_bar.count, filter_settings, self.party_members)
 
         local bar_index = 1
         if show and not self.state.in_cs then
@@ -551,6 +552,80 @@ function EnemyBar:cachePartyMember(member, party_number)
                 self.party_members[pet.id] = {is_pet = true, owner = member.mob.id, party = party_number}
             end
         end
+    end
+end
+
+-- Scan mob array for mobs that are a threat to the player or party.
+-- Supplements packet-driven enmity tracking for mobs that are purely
+-- meleeing without using abilities (which generate no 0x028 packets).
+-- Catches two cases:
+--   1. Mobs with claim_id matching the player or a party member (normal claim)
+--   2. Mobs with no claim but actively targeting the player or a party member
+--      (e.g. linked mobs, mobs engaged before the addon loaded)
+-- Throttled to run at most once every 0.5 seconds.
+local CLAIM_SCAN_INTERVAL = 0.5
+
+function EnemyBar:scanClaimedMobs()
+    local current_time = os.clock()
+    if current_time - self.state.last_claim_scan < CLAIM_SCAN_INTERVAL then return end
+    self.state.last_claim_scan = current_time
+
+    if not self.player_id then return end
+
+    -- Build a set of party member mob indexes for target_index comparison
+    local party_indexes = {}
+    local player_mob = windower.ffxi.get_mob_by_target('me')
+    if player_mob then
+        party_indexes[player_mob.index] = self.player_id
+    end
+    for member_id, _ in pairs(self.party_members) do
+        local member_mob = windower.ffxi.get_mob_by_id(member_id)
+        if member_mob then
+            party_indexes[member_mob.index] = member_id
+        end
+    end
+
+    local success, err = pcall(function()
+        for _, mob in pairs(windower.ffxi.get_mob_array()) do
+            if mob and mob.id and mob.hpp and mob.hpp > 0
+            and mob.is_npc and not mob.charmed then
+
+                local aggressor_pc = nil
+
+                -- Case 1: mob is claimed by player or party member
+                if mob.claim_id and mob.claim_id ~= 0 then
+                    if mob.claim_id == self.player_id or self.party_members[mob.claim_id] then
+                        aggressor_pc = mob.claim_id
+                    end
+                end
+
+                -- Case 2: mob is actively targeting player or party member
+                -- (catches unclaimed links and mobs engaged before addon load)
+                if not aggressor_pc and mob.target_index and mob.target_index ~= 0 then
+                    aggressor_pc = party_indexes[mob.target_index]
+                end
+
+                if aggressor_pc then
+                    if not ActionTracker.tracked_enmity[mob.id] then
+                        -- New entry — inject it
+                        ActionTracker.tracked_enmity[mob.id] = {
+                            mob = mob.id,
+                            pc = aggressor_pc,
+                            time = os.time()
+                        }
+                    else
+                        -- Existing entry — refresh timestamp so it doesn't age out
+                        -- while the mob is still actively threatening us.
+                        -- Preserve pc from packet-driven data if present.
+                        ActionTracker.tracked_enmity[mob.id].time = os.time()
+                    end
+                end
+            end
+        end
+    end)
+
+    if not success then
+        windower.add_to_chat(123, 'EnemyBar: scanClaimedMobs error - ' .. tostring(err))
     end
 end
 
@@ -695,6 +770,8 @@ function EnemyBar:handleCommand(c, ...)
             self:handleFocusTargetCommand(args)
         elseif c == 'demo' or c == 'setup' or c == 'debug' or c == 'test' then
             self:handleDemoCommand(args)
+        elseif c == 'scan' then
+            self:handleScanDebug()
         elseif c == 'help' or c == 'h' or c == 'man' or c == 'manual' then
             self:showHelp()
         elseif c == 'tracking' or c == 'track' then
@@ -790,6 +867,49 @@ function EnemyBar:handleTrackingCommand(args)
     end
 end
 
+function EnemyBar:handleScanDebug()
+    local player_mob = windower.ffxi.get_mob_by_target('me')
+    local player_obj = windower.ffxi.get_player()
+
+    windower.add_to_chat(207, '=== EnemyBar Scan Debug ===')
+    windower.add_to_chat(207, 'player_id: ' .. tostring(self.player_id))
+    windower.add_to_chat(207, 'player mob index: ' .. tostring(player_mob and player_mob.index or 'nil'))
+    windower.add_to_chat(207, 'get_player().id: ' .. tostring(player_obj and player_obj.id or 'nil'))
+
+    -- Dump tracked_enmity
+    local enmity_count = 0
+    for id, data in pairs(ActionTracker.tracked_enmity) do
+        local mob = windower.ffxi.get_mob_by_id(id)
+        windower.add_to_chat(207, 'enmity: ' .. tostring(mob and mob.name or id) .. 
+            ' pc=' .. tostring(data.pc) .. ' age=' .. tostring(os.time() - data.time) .. 's')
+        enmity_count = enmity_count + 1
+    end
+    if enmity_count == 0 then
+        windower.add_to_chat(207, 'tracked_enmity: EMPTY')
+    end
+
+    -- Dump nearby NPCs with their claim_id and target_index
+    windower.add_to_chat(207, '--- Nearby NPCs (within 20) ---')
+    local player_pos = player_mob and {x=player_mob.x, y=player_mob.y} or nil
+    for _, mob in pairs(windower.ffxi.get_mob_array()) do
+        if mob and mob.id and mob.hpp and mob.hpp > 0 and mob.is_npc then
+            local dist = 999
+            if player_pos and mob.x and mob.y then
+                local dx = player_pos.x - mob.x
+                local dy = player_pos.y - mob.y
+                dist = math.sqrt(dx*dx + dy*dy)
+            end
+            if dist < 20 then
+                windower.add_to_chat(207, mob.name .. 
+                    ' idx=' .. tostring(mob.index) ..
+                    ' claim=' .. tostring(mob.claim_id) ..
+                    ' target_idx=' .. tostring(mob.target_index) ..
+                    ' status=' .. tostring(mob.status))
+            end
+        end
+    end
+end
+
 function EnemyBar:showHelp()
     local helptext = {
         'Enemy Bar Enhanced v2.2 - Command List:',
@@ -844,7 +964,7 @@ function EnemyBar:normalizeBarName(name)
         ft = 'focustarget'
     }
     
-    return bar_mapping[name] or (name:match('^(target|subtarget|aggro|focustarget|all)$') and name or nil)
+	return bar_mapping[name] or (name:match('^(target|subtarget|aggro|focustarget|all)') and name or nil)
 end
 
 function EnemyBar:normalizeBoolean(value)
@@ -879,6 +999,7 @@ local function mainUpdate()
     EnemyBar.state.last_update = current_time
     
     if EnemyBar.player_id then
+        EnemyBar:scanClaimedMobs()
         EnemyBar:updateBarSafe(EnemyBar.bars.target, windower.ffxi.get_mob_by_target('t'), settings.target_bar.show)
         EnemyBar:updateBarSafe(EnemyBar.bars.subtarget, windower.ffxi.get_mob_by_target('st'), settings.subtarget_bar.show)
         EnemyBar:updateBarSafe(EnemyBar.bars.focustarget, 
@@ -918,14 +1039,14 @@ end)
 
 windower.register_event('logout', function()
     EnemyBar.player_id = nil    
-    EnemyBar.state = {setup = false, focustarget = nil, in_cs = false, last_update = 0, cleanup_counter = 0}      
+    EnemyBar.state = {setup = false, focustarget = nil, in_cs = false, last_update = 0, last_claim_scan = 0, cleanup_counter = 0}      
 end)
 
 windower.register_event('login', function()
     if windower.ffxi.get_info().logged_in then
         EnemyBar.player_id = windower.ffxi.get_player().id
     end
-    EnemyBar.state = {setup = false, focustarget = nil, in_cs = false, last_update = 0, cleanup_counter = 0}
+    EnemyBar.state = {setup = false, focustarget = nil, in_cs = false, last_update = 0, last_claim_scan = 0, cleanup_counter = 0}
     EnemyBar:cachePartyMembers()
     
     -- Auto-apply profile after login with delay
