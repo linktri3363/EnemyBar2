@@ -396,7 +396,31 @@ function ActionTracker:trackActions(ai)
     if not mob or not mob.hpp or mob.hpp == 0 then return end
     
     if ai.category == 1 then return end
-    
+
+    -- Category 4 = spell lands/resolves. Mark the pending action complete and clear any alert.
+    if ai.category == 4 then
+        if self.tracked_actions[mob_id] then
+            self.tracked_actions[mob_id].complete = true
+            self.tracked_actions[mob_id].time = os.time()
+        end
+        if self.alert_system.current_alert and self.alert_system.current_alert.actor_id == mob_id then
+            self.alert_system.current_alert = nil
+        end
+        return
+    end
+
+    -- Category 11 = spell or ability interrupted/cancelled. Clear action and alert.
+    if ai.category == 11 then
+        if self.tracked_actions[mob_id] then
+            self.tracked_actions[mob_id].complete = true
+            self.tracked_actions[mob_id].time = os.time()
+        end
+        if self.alert_system.current_alert and self.alert_system.current_alert.actor_id == mob_id then
+            self.alert_system.current_alert = nil
+        end
+        return
+    end
+
     if ai.category ~= 7 and ai.category ~= 8 then return end
     
     local action_data = {
@@ -416,12 +440,19 @@ function ActionTracker:trackActions(ai)
                     action_data.ability = skill_data
                     action_data.is_dangerous = DANGEROUS_ACTIONS[skill_data.name] or DANGEROUS_ACTIONS[skill_data.en] or false
                 end
+                -- TP moves resolve in the same packet they start; mark complete immediately
+                -- and clear any existing alert for this mob since the move has landed.
+                if self.alert_system.current_alert and self.alert_system.current_alert.actor_id == mob_id then
+                    self.alert_system.current_alert = nil
+                end
+                action_data.complete = true
             elseif ai.category == 8 then
                 local spell_data = res.spells[param]
                 if spell_data then
                     action_data.ability = spell_data
                     action_data.is_dangerous = DANGEROUS_ACTIONS[spell_data.name] or DANGEROUS_ACTIONS[spell_data.en] or false
                 end
+                -- Category 8 = cast start; completion arrives as category 4 (handled above)
             end
         end
     end
@@ -466,7 +497,7 @@ function ActionTracker:getDebuffDuration(effect_id)
     return durations[effect_id] or 60
 end
 
-function ActionTracker:getSmartAggroList(max_count, filter_settings)
+function ActionTracker:getSmartAggroList(max_count, filter_settings, party_members)
     local threats = {}
     local player = windower.ffxi.get_mob_by_target('me')
     if not player then return {} end
@@ -479,7 +510,7 @@ function ActionTracker:getSmartAggroList(max_count, filter_settings)
         if mob and mob.hpp and mob.hpp > 0 and mob.x and mob.y then
             self:trackHPChanges(mob_id, mob.hpp, current_time)
             
-            local threat_score = self:calculateThreatScore(mob, enmity_data, player_pos)
+            local threat_score = self:calculateThreatScore(mob, enmity_data, player_pos, party_members)
             local distance = self:getDistance(player_pos, mob)
             
             local should_show = self:shouldShowThreat(threat_score, distance, mob_id, filter_settings)
@@ -517,7 +548,7 @@ function ActionTracker:getSmartAggroList(max_count, filter_settings)
     return result
 end
 
-function ActionTracker:calculateThreatScore(mob, enmity_data, player_pos)
+function ActionTracker:calculateThreatScore(mob, enmity_data, player_pos, party_members)
     if not mob or not player_pos or not mob.x or not mob.y or not mob.hpp then 
         return 0 
     end
@@ -526,13 +557,18 @@ function ActionTracker:calculateThreatScore(mob, enmity_data, player_pos)
     if distance > 50 then return 0 end
     
     local distance_factor = math.max(0, (50 - distance) / 50)
-    local hp_factor = mob.hpp / 100
+
+    -- HP factor: used to prioritize targets, but floored at 0.25 so that
+    -- near-dead mobs (1% HP) don't score so low they fall below MIN_THREAT_SCORE
+    -- and disappear from the aggro bars while still alive and threatening.
+    local hp_factor = math.max(0.25, mob.hpp / 100)
     local player = windower.ffxi.get_player()
     if player and player.main_job and (player.main_job == 'PLD' or player.main_job == 'NIN' or player.main_job == 'RUN') then
-        hp_factor = 1.2 - hp_factor
+        -- Tanks: invert so low-HP mobs (dying) are lower priority than fresh ones
+        hp_factor = math.max(0.25, 1.2 - mob.hpp / 100)
     end
     
-    local enmity_factor = self:calculateEnmityFactor(enmity_data)
+    local enmity_factor = self:calculateEnmityFactor(enmity_data, party_members)
     local debuff_factor = self:calculateDebuffFactor(mob.id)
     local action_factor = self:calculateActionFactor(mob.id)
     local prediction_factor = self:calculatePredictionFactor(mob.id)
@@ -541,25 +577,29 @@ function ActionTracker:calculateThreatScore(mob, enmity_data, player_pos)
                        debuff_factor * action_factor * prediction_factor)
 end
 
-function ActionTracker:calculateEnmityFactor(enmity_data)
-    if not enmity_data then return 0.5 end
-    
+function ActionTracker:calculateEnmityFactor(enmity_data, party_members)
+    if not enmity_data then return 0 end
+
     local player_obj = windower.ffxi.get_player()
     if player_obj and enmity_data.pc == player_obj.id then
         return 3.0  -- Player has aggro - highest priority
     end
-    
-    -- Check if the target is a party/alliance member using our own function
-    local is_party_member = self:isPartyMemberOrPet(enmity_data.pc)
-    
-    if is_party_member then
-        -- For now, treat all party/alliance members the same
-        -- We'll add more detailed tracking settings later
-        return 2.0  -- Party/alliance member
+
+    -- Use the cached party_members table passed in from EnemyBar when available.
+    -- Fall back to the live lookup only if the table wasn't provided (e.g. called
+    -- outside the normal aggro-bar update path).
+    if party_members then
+        if enmity_data.pc and party_members[enmity_data.pc] then
+            return 2.0  -- Party/alliance member has aggro
+        end
+        return 0  -- Not in party/alliance - exclude entirely
+    else
+        -- Fallback: live lookup (slower, used only outside normal update path)
+        if self:isPartyMemberOrPet(enmity_data.pc) then
+            return 2.0
+        end
+        return 0
     end
-    
-    -- If it's not a party member, give it very low priority to filter it out
-    return 0.1  -- Very low priority, effectively filtered out
 end
 
 function ActionTracker:calculateDebuffFactor(mob_id)
@@ -1004,15 +1044,18 @@ function ActionTracker:cleanupTrackedData()
     end
 
     for id, enmity in pairs(self.tracked_enmity) do
-        if time - enmity.time > 5 then
+        if time - enmity.time > 15 then
             local mob = windower.ffxi.get_mob_by_id(enmity.mob)
             if not mob or not mob.hpp or mob.hpp == 0 then
-                self.tracked_enmity[id] = nil
-            elseif mob.status == 0 then
+                -- Mob is dead or gone
                 self.tracked_enmity[id] = nil
             elseif player and self:getDistance(player, mob) > 50 then
+                -- Mob is out of range
                 self.tracked_enmity[id] = nil
             end
+            -- Note: mob.status == 0 (idle) is intentionally NOT a purge condition.
+            -- A mob can briefly lose engaged status when targets switch or it resets,
+            -- but may still be a threat. Purge only on death or distance.
         end
     end
 
