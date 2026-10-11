@@ -345,7 +345,11 @@ end
 
 -- Live mode bar updates
 function EnemyBar:updateLiveBar(bar, target, show, threat_data)
-    if not target or not target.name or not target.hpp or not show or self.state.in_cs then     
+    -- valid_target == false means the mob despawned (fled / fetter removed);
+    -- its stale entry keeps the last HP%, so hide on that too. Only the
+    -- valid_target flag is checked here (not hpp), so 0% bars behave as before.
+    if not target or not target.name or not target.hpp or not show or self.state.in_cs
+       or target.valid_target == false then
         bars.hide(bar)
         return
     end
@@ -587,7 +591,9 @@ function EnemyBar:scanClaimedMobs()
 
     local success, err = pcall(function()
         for _, mob in pairs(windower.ffxi.get_mob_array()) do
-            if mob and mob.id and mob.hpp and mob.hpp > 0
+            -- isMobActive excludes despawned mobs, which keep their old
+            -- claim_id and would otherwise be re-injected/refreshed forever.
+            if mob and mob.id and ActionTracker:isMobActive(mob)
             and mob.is_npc and not mob.charmed then
 
                 local aggressor_pc = nil
@@ -904,7 +910,8 @@ function EnemyBar:handleScanDebug()
                     ' idx=' .. tostring(mob.index) ..
                     ' claim=' .. tostring(mob.claim_id) ..
                     ' target_idx=' .. tostring(mob.target_index) ..
-                    ' status=' .. tostring(mob.status))
+                    ' status=' .. tostring(mob.status) ..
+                    ' valid=' .. tostring(mob.valid_target))
             end
         end
     end

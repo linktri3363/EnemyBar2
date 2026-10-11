@@ -138,6 +138,8 @@ function ActionTracker:handleActionPacket(id, data)
             self:handleStatusPacket(data)
         elseif id == 0x02D then
             self:handleDeathPacket(data)
+        elseif id == 0x00E then
+            self:handleEntityUpdate(data)
         end
     end)
     
@@ -507,7 +509,7 @@ function ActionTracker:getSmartAggroList(max_count, filter_settings, party_membe
     
     for mob_id, enmity_data in pairs(self.tracked_enmity) do
         local mob = windower.ffxi.get_mob_by_id(mob_id)
-        if mob and mob.hpp and mob.hpp > 0 and mob.x and mob.y then
+        if self:isMobActive(mob) and mob.x and mob.y then
             self:trackHPChanges(mob_id, mob.hpp, current_time)
             
             local threat_score = self:calculateThreatScore(mob, enmity_data, player_pos, party_members)
@@ -960,6 +962,45 @@ function ActionTracker:isNPC(mob_id)
     return mob.is_npc and not mob.charmed
 end
 
+-- True only if the mob is alive AND still present in the world.
+-- A despawned mob (fled like Aurix, or a fetter removed after the boss dies)
+-- stays in the client's mob array with its last HP% and claim_id intact;
+-- only valid_target goes false. Checking hpp alone treats it as alive forever.
+-- Status 2/3 = dead / dead-while-engaged.
+function ActionTracker:isMobActive(mob)
+    if not mob or not mob.hpp or mob.hpp <= 0 then return false end
+    if mob.valid_target == false then return false end
+    if mob.status == 2 or mob.status == 3 then return false end
+    return true
+end
+
+-- Drop every piece of tracked state for a mob in one place.
+function ActionTracker:purgeMob(mob_id)
+    if not mob_id then return end
+    self.tracked_enmity[mob_id] = nil
+    self.tracked_actions[mob_id] = nil
+    self.tracked_debuff[mob_id] = nil
+    self.hp_tracker[mob_id] = nil
+    local alert = self.alert_system.current_alert
+    if alert and alert.actor_id == mob_id then
+        self.alert_system.current_alert = nil
+    end
+end
+
+-- 0x00E entity update: update-mask bit 0x20 flags a despawn.
+-- Raw byte reads instead of packets.parse because 0x00E arrives constantly.
+-- This is the fast path; isMobActive() polling is the backstop if it's missed.
+function ActionTracker:handleEntityUpdate(data)
+    if not data or #data < 0x0B then return end
+    local mask = data:byte(0x0B)
+    if not mask or math.floor(mask / 0x20) % 2 == 0 then return end
+    local mob_id = data:unpack('I', 0x05)
+    if mob_id and (self.tracked_enmity[mob_id] or self.hp_tracker[mob_id]
+                   or self.tracked_debuff[mob_id] or self.tracked_actions[mob_id]) then
+        self:purgeMob(mob_id)
+    end
+end
+
 function ActionTracker:getDistance(pos1, pos2)
     if not pos1 or not pos2 or not pos1.x or not pos1.y or not pos2.x or not pos2.y then
         return 999
@@ -1044,24 +1085,24 @@ function ActionTracker:cleanupTrackedData()
     end
 
     for id, enmity in pairs(self.tracked_enmity) do
-        if time - enmity.time > 15 then
-            local mob = windower.ffxi.get_mob_by_id(enmity.mob)
-            if not mob or not mob.hpp or mob.hpp == 0 then
-                -- Mob is dead or gone
-                self.tracked_enmity[id] = nil
-            elseif player and self:getDistance(player, mob) > 50 then
-                -- Mob is out of range
-                self.tracked_enmity[id] = nil
-            end
-            -- Note: mob.status == 0 (idle) is intentionally NOT a purge condition.
-            -- A mob can briefly lose engaged status when targets switch or it resets,
-            -- but may still be a threat. Purge only on death or distance.
+        local mob = windower.ffxi.get_mob_by_id(enmity.mob or id)
+        if not self:isMobActive(mob) then
+            -- Dead or despawned: purge immediately, no age gate. scanClaimedMobs
+            -- used to keep refreshing despawned mobs (stale claim_id), so an age
+            -- gate alone never fired for them.
+            self:purgeMob(id)
+        elseif time - enmity.time > 15 and player and self:getDistance(player, mob) > 50 then
+            -- Mob is out of range
+            self.tracked_enmity[id] = nil
         end
+        -- Note: mob.status == 0 (idle) is intentionally NOT a purge condition.
+        -- A mob can briefly lose engaged status when targets switch or it resets,
+        -- but may still be a threat. Purge only on death, despawn or distance.
     end
 
     for id, debuffs in pairs(self.tracked_debuff) do
         local mob = windower.ffxi.get_mob_by_id(id)
-        if not mob or not mob.hpp or mob.hpp == 0 then
+        if not self:isMobActive(mob) then
             self.tracked_debuff[id] = nil
         else
             for effect_id, debuff in pairs(debuffs) do
@@ -1074,7 +1115,7 @@ function ActionTracker:cleanupTrackedData()
     
     for id, tracker in pairs(self.hp_tracker) do
         local mob = windower.ffxi.get_mob_by_id(id)
-        if not mob or not mob.hpp or mob.hpp == 0 then
+        if not self:isMobActive(mob) then
             self.hp_tracker[id] = nil
         elseif #tracker.samples > 0 then
             local last_sample_time = tracker.samples[#tracker.samples].time
