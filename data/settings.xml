@@ -8,7 +8,7 @@
                 <green>150</green>
                 <red>0</red>
             </color>
-            <count>6</count>
+            <count>3</count>
             <font>Grammara</font>
             <font_size>12</font_size>
             <pos>
@@ -147,21 +147,21 @@
     </judgespedd>
     <linktri>
         <aggro_bar>
-            <count>10</count>
             <pos>
-                <x>530</x>
+                <x>690</x>
+                <y>100</y>
             </pos>
         </aggro_bar>
         <focustarget_bar>
             <pos>
-                <x>650</x>
-                <y>330</y>
+                <x>970</x>
+                <y>210</y>
             </pos>
         </focustarget_bar>
         <subtarget_bar>
             <pos>
-                <x>535</x>
-                <y>290</y>
+                <x>920</x>
+                <y>190</y>
             </pos>
             <show_action>true</show_action>
             <show_target>true</show_target>
@@ -172,7 +172,8 @@
                 <blue>100</blue>
             </color>
             <pos>
-                <x>530</x>
+                <x>690</x>
+                <y>70</y>
             </pos>
             <show_kill_timer>true</show_kill_timer>
             <width>800</width>
