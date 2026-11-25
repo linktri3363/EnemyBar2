@@ -153,7 +153,7 @@ With auto profile switching on, changing jobs can overwrite these (`//eb profile
 //eb df details [on/off]              - Details panel (Helix, Kaustra, elemental damage, shots)
 //eb df shots [on/off]                - Include elemental shots in the details panel
 //eb df keep_buff [on/off]            - Keep expired debuffs with a +seconds counter
-//eb df auto [on/off]                 - Auto-learn real durations (also turns keep_buff on/off)
+//eb df auto [on/off]                 - Auto-learn real durations, longer or shorter (also turns keep_buff on/off)
 //eb df auto_profiles [on/off]        - Per-main-job duration profiles
 //eb df {Spell Name}|ID <secs|remove> - Set or remove a duration override
 //eb df save|load|delete <name>, list - Duration profiles
@@ -185,6 +185,11 @@ status icons on the target bar:
   own with `//eb df {Stun} <seconds>`), and Sleepga / Sleepga II use Sleep / Sleep II's duration. Any other debuff that lands with no known duration (e.g.
   Jubaku, Hojo, Kurayami, Dokumori, Venom Shell, Hysteric Barrage) shows a `?` timer until it wears off (at most
   3 minutes); with `keep_buff` or `auto` on, its real duration is learned when it wears off.
+- **Learning durations** (`//eb df auto on`): when a debuff outlasts its timer, the overtime is
+  added; when the game's wear-off message arrives 2+ seconds early, the timer is shortened to
+  the real duration. Only genuine wear-offs count: deaths, overwrites and erases don't, and
+  effects that damage or actions can break (sleep, lullaby, bind, stun, petrify, terror) are
+  never shortened. Without `auto`, `keep_buff` prints the same values as `//eb df` hints.
 - Tracked debuffs survive `//lua reload enemybar2`: they're saved on unload and restored on
   load if you're still in the same zone (within 30 minutes), with their timers intact.
 

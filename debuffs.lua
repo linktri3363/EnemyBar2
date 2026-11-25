@@ -68,6 +68,9 @@ end
 -- A debuff that lands with no known duration is shown with a "?" timer until
 -- the game says it wore off, capped here (seconds)
 local UNKNOWN_CAP = 180
+
+-- Ended by damage or the mob acting rather than by time: never shorten these
+local BREAKABLE = { [2]=true, [19]=true, [193]=true, [11]=true, [10]=true, [7]=true, [28]=true }
 local absorb_map = {
   [242]={effect=242,duration=90},[266]={effect=266,duration=90},[267]={effect=267,duration=90},[268]={effect=268,duration=90},
   [269]={effect=269,duration=90},[270]={effect=270,duration=90},[271]={effect=271,duration=90},[272]={effect=272,duration=90}
@@ -207,8 +210,22 @@ local function remove_debuff(target, effect, opts)
     if not (debuffed_mobs[target] and debuffed_mobs[target][effect]) then return end
     local e = debuffed_mobs[target][effect]
 
+    -- Wore off early (by the game's own wear-off message, not death/overwrite/
+    -- erase): learn the shorter duration. Effects that damage or actions can
+    -- break are skipped, since their end says nothing about their duration.
+    if type(e) == 'table' and opts.wear_off and e.applied_at and not e.expired_at
+    and not e.unknown and not e.unknown_dur and not e.no_hint and not BREAKABLE[effect]
+    and not (simulation_mode and player and target == player.id)
+    and cfg().keep_buff_after_timer then
+        local actual = os.clock() - e.applied_at
+        if (e.base_dur or 0) > 0 and actual < e.base_dur - 2 and actual >= 3 then
+            e.expired_at = e.applied_at
+            e.base_dur = 0
+        end
+    end
+
     -- Unknown-duration debuff wearing off: the time since it landed is its duration
-    if type(e) == 'table' and e.unknown_dur and e.applied_at and not e.no_hint and not opts.no_hint
+    if type(e) == 'table' and opts.wear_off and e.unknown_dur and e.applied_at and not e.no_hint and not opts.no_hint
     and not (simulation_mode and player and target == player.id)
     and cfg().keep_buff_after_timer and os.clock() < (e.timer or 0) then
         e.expired_at = e.applied_at
@@ -272,7 +289,7 @@ local function apply_debuff(target, effect, spell_id, duration, label_effect)
               or (res.spells[spell_id] and res.spells[spell_id].en) or 'Unknown'
     local dur = tonumber(duration or 0) or 0
     if dur > 0 then
-        debuffed_mobs[target][effect] = { id = spell_id, name = name, timer = os.clock() + dur, base_dur = dur, expired_at = nil }
+        debuffed_mobs[target][effect] = { id = spell_id, name = name, timer = os.clock() + dur, base_dur = dur, expired_at = nil, applied_at = os.clock() }
     else
         -- Unknown duration: show "?" until it wears off; the wear-off time is learnable
         local now = os.clock()
@@ -538,6 +555,8 @@ local STEP_REMOVALS = {
 }
 local ABSORB_PAIRS = {[136]=266,[137]=267,[138]=268,[139]=269,[140]=270,[141]=271,[142]=272,[146]=242}
 
+local WEAR_OFF = { wear_off = true }
+
 local function inc_action_message(arr)
     if T{6,20,113,406,605,646}:contains(arr.message_id) then
         if is_enemy(arr.target_id) then
@@ -549,7 +568,7 @@ local function inc_action_message(arr)
             local tid, pid = arr.target_id, arr.param_1
             if arr.message_id == 206 then
                 if ABSORB_PAIRS[pid] then
-                    remove_debuff(tid, pid); remove_debuff(tid, ABSORB_PAIRS[pid])
+                    remove_debuff(tid, pid, WEAR_OFF); remove_debuff(tid, ABSORB_PAIRS[pid], WEAR_OFF)
                     if step_duration[tid] then step_duration[tid][ABSORB_PAIRS[pid]] = 0 end
                 else
                     for _, sr in ipairs(STEP_REMOVALS) do
@@ -559,10 +578,10 @@ local function inc_action_message(arr)
                             return
                         end
                     end
-                    remove_debuff(tid, pid)
+                    remove_debuff(tid, pid, WEAR_OFF)
                 end
             else
-                remove_debuff(tid, pid)
+                remove_debuff(tid, pid, WEAR_OFF)
             end
         end
     end
