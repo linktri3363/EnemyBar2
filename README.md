@@ -1,4 +1,4 @@
-# EnemyBar Enhanced v2.2
+# EnemyBar Enhanced v2.3
 
 An advanced enemy tracking and threat management addon for Final Fantasy XI (Windower).
 
@@ -15,6 +15,7 @@ EnemyBar Enhanced provides comprehensive enemy tracking with HP prediction, smar
 - **Action Alert System** - Visual/audio warnings for dangerous enemy abilities
 - **Kill Timer** - Track time since last kill with chain saver functionality
 - **Job-Specific Profiles** - Auto-switching configurations optimized per job
+- **Limbus Chest Tracker** - Tracks the four treasure chests in Apollyon and Temenos (formerly the LimbusHelper addon)
 
 ### Enhanced Tracking
 - **Threat Scoring** - Advanced algorithm considering distance, HP, enmity, and debuffs
@@ -34,6 +35,7 @@ EnemyBar Enhanced provides comprehensive enemy tracking with HP prediction, smar
    - `enemybar2.lua` - Main addon file
    - `actionTracking.lua` - Action and threat tracking
    - `bars.lua` - UI rendering system
+   - `limbus.lua` - Limbus chest tracker
    - `settings.xml` - Configuration file
    - Image assets (bg_cap.png, bg_body.png, fg_body.png, etc.)
 
@@ -90,6 +92,46 @@ EnemyBar Enhanced provides comprehensive enemy tracking with HP prediction, smar
 //eb help                            - Show command help
 //eb demo                            - Toggle demo mode
 ```
+
+### Limbus Chest Tracker
+`//eb lh` and `//eb limbus` both work.
+```
+//eb lh reset [apollyon/temenos/all]  - Reset tracking (no argument: current zone, or both outside Limbus)
+//eb lh sector <sector>               - Toggle a sector between Opened and Unopened
+//eb lh sector <sector> <3000/5000>   - Log a chest result by hand (5000 logs a bonus)
+//eb lh show / hide / toggle          - Show both zones outside Limbus
+//eb lh on / off                      - Enable or disable the module
+//eb lh pos                           - Print position, detected sector and distance to its chest
+//eb lh debug                         - Echo incoming text in Limbus (troubleshooting)
+//eb lh help                          - Show Limbus commands
+```
+
+## Limbus Chest Tracker
+
+Each zone in Limbus has four treasure-chest sectors. Opening a chest gives either the
+standard reward (3,000 units) or the bonus reward (5,000 units). The tracker shows which
+sectors you've opened, highlights the bonus, and resets the zone 5 seconds after a bonus so
+you can start looking for the next one.
+
+- **Sectors**: Apollyon `NW NE SW SE`, Temenos `N W E C`
+- **Automatic detection**: Reads the "Acquired ... Units" message and works out the sector from
+  the nearest chest. Rewards from anything that isn't near a chest (such as a ???) are ignored,
+  and so are lines typed in player chat.
+- **Display**: One EB2-style bar per sector, drawn with the same textures and fonts as the other bars
+  - Red, empty bar: Unopened
+  - Green, full bar: Opened (standard reward)
+  - Gold bar: Bonus. The bar drains over 5 seconds as the reset countdown.
+- **Visibility**: Shows automatically in Apollyon and Temenos. `//eb lh show` (or `toggle`) also shows
+  both zones everywhere else; `//eb lh hide` turns that off again.
+- **Moving it**: `//eb setup` shows a sample of the module; drag it anywhere like the other bars
+  (hold Ctrl to snap to a 10-pixel grid). Its position is saved.
+- **Saved progress**: Per character in `data/limbus_<CharName>.xml`, so several characters running at
+  once never overwrite each other. A reset interrupted by a reload or crash finishes on the next load.
+- **Settings** (`limbus_bar` in `data/settings.xml`): `pos`, `width`, `font`, `font_size`,
+  `row_spacing`, `show`, `show_anywhere`
+
+If you previously used the standalone LimbusHelper addon, unload it (`//lua unload limbushelper`) and
+remove it from `scripts/init.txt` so the two don't both draw an overlay.
 
 ## Job Profiles
 
@@ -199,6 +241,7 @@ enemybar2/
 ├── enemybar2.lua          - Main addon controller
 ├── actionTracking.lua     - Threat and action tracking
 ├── bars.lua              - UI rendering system  
+├── limbus.lua            - Limbus chest tracker
 ├── settings.xml          - User configuration
 ├── gui_settings.lua      - Legacy compatibility
 ├── subtargetBar.lua      - Legacy compatibility  
@@ -212,7 +255,10 @@ enemybar2/
 
 ## Version History
 
-### v2.2 (Current)
+### v2.3 (Current)
+- Added the Limbus chest tracker module (ported from LimbusHelper v1.06), with its own draggable position
+
+### v2.2
 - Performance optimizations and memory management
 - Enhanced error handling and stability  
 - Modular architecture refactor
@@ -228,6 +274,7 @@ enemybar2/
 
 **Original Authors**: Mmckee, Akaden, Twisted, Linktri  
 **Enhanced Version**: Claude (AI Assistant)  
+**Limbus module**: Based on LimbusHelper by Kaius @ Bahamut and Linktri @ Asura  
 **Framework**: Windower 4 for Final Fantasy XI
 
 ## License
@@ -240,4 +287,4 @@ For issues or feature requests, refer to the Windower community forums or FFXI a
 
 ---
 
-*EnemyBar Enhanced v2.2 - Bringing modern performance and features to classic FFXI enemy tracking.*
+*EnemyBar Enhanced v2.3 - Bringing modern performance and features to classic FFXI enemy tracking.*

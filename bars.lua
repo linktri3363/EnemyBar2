@@ -527,7 +527,7 @@ function bars.update_prediction_display(bar, death_prediction)
         local time_text = death_prediction < 1 and "<1s" or string.format('%.0fs', death_prediction)
         bar.prediction_text.time = time_text
         
-        local pred_color = get_death_prediction_color(death_prediction)
+        local pred_color = get_death_prediction_color and get_death_prediction_color(death_prediction)
         if pred_color then
             bar.prediction_text:color(pred_color.red, pred_color.green, pred_color.blue)
             bars.set_name_color(bar, pred_color)

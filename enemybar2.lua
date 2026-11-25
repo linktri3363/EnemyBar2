@@ -1,11 +1,11 @@
 --[[
 Enhanced EnemyBar2 with HP Prediction, Smart Filtering, Profile System, and Kill Timer
-Version 2.2 - Performance Optimized and Refactored
+Version 2.3 - Limbus chest tracker module
 --]]
 
 _addon.name = 'enemybar2'
 _addon.author = 'Mmckee, Akaden, Twisted, Linktri, Claude'
-_addon.version = '2.2.0'
+_addon.version = '2.3.0'
 _addon.language = 'English'
 _addon.commands = {'enemybar','eb'}
 
@@ -19,6 +19,7 @@ local packets = require('packets')
 -- Internal modules
 require('bars')
 require('actionTracking')
+require('limbus')
 
 -- ADD THESE TRACKING SETTINGS HERE (after the requires, before constants)
 local tracking_settings = {
@@ -290,6 +291,9 @@ function EnemyBar:initializeBars()
                 y = y - settings.aggro_bar.stack_padding
             end
         end
+
+        -- Limbus chest tracker (limbus.lua)
+        Limbus:initialize(settings.limbus_bar)
     end)
     
     if not success then
@@ -782,6 +786,8 @@ function EnemyBar:handleCommand(c, ...)
             self:showHelp()
         elseif c == 'tracking' or c == 'track' then
             self:handleTrackingCommand(args)
+        elseif c == 'limbus' or c == 'lh' then
+            Limbus:handleCommand(args)
         else
             windower.add_to_chat(123, 'Unknown command: ' .. c .. '. Use //eb help for available commands.')
         end
@@ -919,18 +925,17 @@ end
 
 function EnemyBar:showHelp()
     local helptext = {
-        'Enemy Bar Enhanced v2.2 - Command List:',
+        'Enemy Bar Enhanced v2.3 - Command List:',
         '1. profile/p [tank/healer/dps/support/list/auto] - Manage job profiles',
         '2. set/s [setting] [target/t/subtarget/st/aggro/a/all] [value] - Configure settings',
         '3. focustarget/ft/f [name/id/clear] - Set focus target',
         '4. setup/demo/debug/test - Toggle setup mode with drag functionality',
         '5. killtimer/kt/kill [toggle/reset/chainsaver/status] - Kill timer controls',
         '6. alert/alerts/fa [toggle/sounds/duration/emphasize/test/status] - Action alert system',
+        '7. limbus/lh [reset/sector/show/hide/toggle/on/off/pos/debug] - Limbus chest tracker (//eb lh help)',
         '',
-        'NEW in v2.2:',
-        '• Performance optimizations and better error handling',
-        '• Improved memory management and cleanup',
-        '• Enhanced architecture with modular design'
+        'NEW in v2.3:',
+        '• Limbus chest tracker for Apollyon and Temenos (formerly LimbusHelper)'
     }
     for _, line in ipairs(helptext) do
         windower.add_to_chat(207, line)
@@ -1004,6 +1009,11 @@ local function mainUpdate()
         return
     end
     EnemyBar.state.last_update = current_time
+
+    local ok, lerr = pcall(Limbus.update, Limbus, EnemyBar.state.setup)
+    if not ok then
+        windower.add_to_chat(123, 'EnemyBar: Limbus update error - ' .. tostring(lerr))
+    end
     
     if EnemyBar.player_id then
         EnemyBar:scanClaimedMobs()
@@ -1083,17 +1093,23 @@ windower.register_event('mouse', function(type, x, y, delta, blocked)
 
     if type == 0 then -- Mouse move
         if dragged then
+            -- Anchor = whatever is being dragged: the first bar of a set, or the Limbus module
+            local anchor = dragged.limbus and Limbus or dragged.bars[1]
             local d_x, d_y = 0, 0
             if drag_snap_key_down then
-                d_x = math.floor(((x - dragged.x) + dragged.bars[1].x)/10)*10 - dragged.bars[1].x
-                d_y = math.floor(((y - dragged.y) + dragged.bars[1].y)/10)*10 - dragged.bars[1].y
+                d_x = math.floor(((x - dragged.x) + anchor.x)/10)*10 - anchor.x
+                d_y = math.floor(((y - dragged.y) + anchor.y)/10)*10 - anchor.y
             else
                 d_x = x - dragged.x
                 d_y = y - dragged.y
             end
 
-            for i, bar in ipairs(dragged.bars) do
-                bars.move(bar, bar.x + d_x, bar.y + d_y)
+            if dragged.limbus then
+                Limbus:move(Limbus.x + d_x, Limbus.y + d_y)
+            else
+                for i, bar in ipairs(dragged.bars) do
+                    bars.move(bar, bar.x + d_x, bar.y + d_y)
+                end
             end
             dragged.x = dragged.x + d_x
             dragged.y = dragged.y + d_y
@@ -1119,12 +1135,18 @@ windower.register_event('mouse', function(type, x, y, delta, blocked)
             end
         end
 
+        if Limbus:hover(x, y) then
+            dragged = {limbus = true, x = x, y = y}
+            return true
+        end
+
     elseif type == 2 then -- Mouse up
         if dragged then
             settings.target_bar.pos = {x=EnemyBar.bars.target.x, y=EnemyBar.bars.target.y}
             settings.subtarget_bar.pos = {x=EnemyBar.bars.subtarget.x, y=EnemyBar.bars.subtarget.y}
             settings.focustarget_bar.pos = {x=EnemyBar.bars.focustarget.x, y=EnemyBar.bars.focustarget.y}
             settings.aggro_bar.pos = {x=EnemyBar.bars.aggro[1].x, y=EnemyBar.bars.aggro[1].y}
+            settings.limbus_bar.pos = {x=Limbus.x, y=Limbus.y}
             settings:save()
             dragged = nil
             return true
@@ -1182,6 +1204,11 @@ local defaults = {
         show_action=false, show_dist=false, show_debuff=false, 
         show_prediction=true, show_kill_timer=false, show_alerts=false,
         count=6, stack_dir='down', stack_padding=27
+    },
+    limbus_bar = {
+        pos={x=150,y=500}, width=160,
+        font='Arial', font_size=10, row_spacing=20,
+        show=true, show_anywhere=false
     }
 }
 
@@ -1201,5 +1228,5 @@ config.register(settings, function() EnemyBar:initializeBars() end)
 EnemyBar:cachePartyMembers()
 
 -- Welcome message
-windower.add_to_chat(207, 'EnemyBar Enhanced v2.2 loaded! Performance optimized with better error handling.')
+windower.add_to_chat(207, 'EnemyBar Enhanced v2.3 loaded! Now with the Limbus chest tracker (//eb lh help).')
 windower.add_to_chat(207, 'Use //eb help for commands, //eb profile list for job profiles.')
