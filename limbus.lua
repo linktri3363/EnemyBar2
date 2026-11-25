@@ -63,11 +63,12 @@ for _, m in ipairs({1, 2, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 212, 213, 214})
     CHAT_MODES[m] = true
 end
 
--- Row colours (EB2 bars tint the textures; background reads darker than fill)
+-- Row colours. Every state draws a solid fill bar (EB2's bg_body texture is
+-- nearly transparent, so an "empty" bar would be invisible in game).
 local COL = {
-    unopened = {bg = {200, 40, 40},  text = {255, 150, 150}},
-    opened   = {bg = {0, 150, 50},   fg = {0, 170, 60},  text = {255, 255, 255}},
-    bonus    = {bg = {120, 95, 0},   fg = {255, 200, 0}, text = {255, 235, 140}},
+    unopened = {fg = {170, 30, 30},  text = {255, 215, 215}},
+    opened   = {fg = {0, 170, 60},   text = {255, 255, 255}},
+    bonus    = {fg = {255, 200, 0},  text = {255, 250, 220}},
     header   = {80, 255, 128},
 }
 
@@ -287,8 +288,7 @@ local function element_list(d)
     local list = {}
     for _, h in ipairs(d.headers) do list[#list+1] = h end
     for _, r in ipairs(d.rows) do
-        list[#list+1] = r.lcap; list[#list+1] = r.bg; list[#list+1] = r.fg
-        list[#list+1] = r.rcap; list[#list+1] = r.label
+        list[#list+1] = r.fg; list[#list+1] = r.label
     end
     return list
 end
@@ -311,13 +311,9 @@ function Limbus:initialize(cfg)
     for i = 1, MAX_HEADERS do d.headers[i] = new_text(cfg, 0.9) end
     for i = 1, MAX_ROWS do
         d.rows[i] = {
-            lcap  = new_image('bg_cap.png'),
-            bg    = new_image('bg_body.png'),
             fg    = new_image('fg_body.png'),
-            rcap  = new_image('bg_cap.png'),
             label = new_text(cfg, 1),
         }
-        d.rows[i].bg:width(cfg.width)
     end
     self.display = d
 end
@@ -352,12 +348,11 @@ function Limbus:render(views)
             ri = ri + 1
             local r = d.rows[ri]
             local c = COL[rv.status]
-            r.lcap:pos(self.x, y);           r.lcap:color(c.bg[1], c.bg[2], c.bg[3])
-            r.bg:pos(self.x + 1, y);         r.bg:color(c.bg[1], c.bg[2], c.bg[3])
-            r.rcap:pos(self.x + 1 + w, y);   r.rcap:color(c.bg[1]/2, c.bg[2]/2, c.bg[3]/2)
-            r.fg:pos(self.x + 1, y)
-            local fw = math.floor(w * (rv.frac or 0))
-            if fw > 0 and c.fg then
+            -- Unopened shows a full red bar; others fill by their fraction
+            local frac = rv.status == 'unopened' and 1 or (rv.frac or 0)
+            r.fg:pos(self.x, y)
+            local fw = math.floor(w * frac)
+            if fw > 0 then
                 r.fg:width(fw)
                 r.fg:color(c.fg[1], c.fg[2], c.fg[3])
                 r.fg:show()
@@ -371,7 +366,7 @@ function Limbus:render(views)
             r.label:color(c.text[1], c.text[2], c.text[3])
             r.label:pos(self.x + math.floor(w / 100) + 2, y + text_dy)
 
-            r.lcap:show(); r.bg:show(); r.rcap:show(); r.label:show()
+            r.label:show()
             y = y + spacing
         end
         y = y + ZONE_GAP
@@ -381,7 +376,7 @@ function Limbus:render(views)
     for i = hi + 1, MAX_HEADERS do d.headers[i]:hide() end
     for i = ri + 1, MAX_ROWS do
         local r = d.rows[i]
-        r.lcap:hide(); r.bg:hide(); r.fg:hide(); r.rcap:hide(); r.label:hide()
+        r.fg:hide(); r.label:hide()
     end
 end
 
