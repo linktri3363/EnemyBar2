@@ -82,10 +82,25 @@ EnemyBar Enhanced provides comprehensive enemy tracking with HP prediction, smar
 
 ### Configuration
 ```
-//eb set [setting] [bar] [value]     - Configure bar settings
+//eb set <setting> <bar> <value>     - Change a bar setting (saved). //eb set alone lists settings
 //eb setup                           - Toggle setup mode (drag bars)
-//eb tracking [party/alliance/outside] - Configure tracking settings
+//eb tracking [party/alliance/pets/outside] [on/off] - Aggro tracking scope
 ```
+
+`<bar>` is `target`/`t`, `subtarget`/`st`, `focustarget`/`ft`, `aggro`/`a`, or `all`.
+
+| Setting | Value | Notes |
+| --- | --- | --- |
+| `show` | on/off/toggle | Show or hide the bar |
+| `show_dist` (`dist`), `show_action` (`action`), `show_target` (`target`), `show_target_icon` (`icon`), `show_debuff` (`debuff`), `show_prediction` (`prediction`), `show_kill_timer` (`killtimer`), `show_alerts` (`alerts`) | on/off/toggle | Optional parts of the bar |
+| `width`, `font_size` (`size`) | number | |
+| `x`, `y` | number | Screen position |
+| `font` | font name | |
+| `color` | R G B [alpha] | 0-255 each, e.g. `//eb set color t 255 0 0` |
+| `count`, `stack_padding` (`padding`), `stack_dir` (`dir`) | number / up or down | Aggro bars only |
+
+Examples: `//eb set dist t on`, `//eb set width aggro 400`, `//eb set count a 4`.
+With auto profile switching on, changing jobs can overwrite these (`//eb profile auto off` to keep them).
 
 ### Utility
 ```
@@ -181,13 +196,17 @@ remove it from `scripts/init.txt` so the two don't both draw an overlay.
 ## Tracking Settings
 
 ### Party Tracking
+Each option takes `on`/`off`, or toggles with no value. Settings are saved.
 ```
-//eb tracking party    - Toggle party-only tracking
-//eb tracking alliance - Toggle alliance member tracking  
-//eb tracking outside  - Toggle non-party player tracking
+//eb tracking            - Show current tracking settings
+//eb tracking party      - Party/alliance only (the opposite of outside)
+//eb tracking alliance   - Include alliance parties 2 and 3
+//eb tracking pets       - Include party members' pets
+//eb tracking outside    - Include mobs on players outside your party/alliance
 ```
 
-Default behavior tracks party/alliance members only to reduce noise.
+By default EB2 tracks your party, alliance and pets, and ignores mobs on outside players.
+With `outside` on, those mobs appear on the aggro list at a lower priority than mobs on your party.
 
 ## Technical Features
 
@@ -256,6 +275,8 @@ enemybar2/
 ## Version History
 
 ### v2.3 (Current)
+- `//eb set` now actually changes bar settings (it previously only redrew the bars)
+- `//eb tracking` options now take effect and are saved; added `pets`
 - Added the Limbus chest tracker module (ported from LimbusHelper v1.06): text-only, with its own draggable position
 
 ### v2.2

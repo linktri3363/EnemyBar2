@@ -594,6 +594,10 @@ function ActionTracker:calculateEnmityFactor(enmity_data, party_members)
         if enmity_data.pc and party_members[enmity_data.pc] then
             return 2.0  -- Party/alliance member has aggro
         end
+        -- Outside player has it: shown at lower priority only if tracking outside players
+        if self.track_outside_players and enmity_data.pc then
+            return 1.0
+        end
         return 0  -- Not in party/alliance - exclude entirely
     else
         -- Fallback: live lookup (slower, used only outside normal update path)

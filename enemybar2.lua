@@ -21,13 +21,12 @@ require('bars')
 require('actionTracking')
 require('limbus')
 
--- ADD THESE TRACKING SETTINGS HERE (after the requires, before constants)
-local tracking_settings = {
-    track_party_only = true,        -- Only show aggro for party members
-    track_alliance = true,          -- Include alliance members (parties 2 & 3)
-    track_pets = true,             -- Include pet aggro
-    track_outside_players = false   -- Track non-party players (what's causing your issue)
-}
+-- Aggro tracking scope. Loaded from settings.tracking (see defaults below)
+-- and applied by cachePartyMembers / scanClaimedMobs / the threat score.
+--   alliance: include alliance parties 2 and 3
+--   pets:     include party members' pets
+--   outside:  include mobs on players outside your party/alliance
+local tracking_settings = {alliance = true, pets = true, outside = false}
 
 -- Constants
 local UPDATE_INTERVAL = 0.1  -- 10 FPS instead of 60+
@@ -524,7 +523,7 @@ function EnemyBar:handlePartyPackets(id, data)
         self:cachePartyMembers()
     elseif id == 0x067 then
         local p = packets.parse('incoming', data)
-        if p['Owner Index'] > 0 then
+        if tracking_settings.pets and p['Owner Index'] > 0 then
             local owner = windower.ffxi.get_mob_by_index(p['Owner Index'])
             if owner and self:isPartyMemberOrPet(owner.id) then
                 self.party_members[p['Pet ID']] = {is_pet = true, owner = owner.id}
@@ -542,11 +541,13 @@ function EnemyBar:cachePartyMembers()
     for i = 0, (party.party1_count or 0) - 1 do
         self:cachePartyMember(party['p'..i], 1)            
     end
-    for i = 0, (party.party2_count or 0) - 1 do
-        self:cachePartyMember(party['a1'..i], 2)            
-    end
-    for i = 0, (party.party3_count or 0) - 1 do
-        self:cachePartyMember(party['a2'..i], 3)            
+    if tracking_settings.alliance then
+        for i = 0, (party.party2_count or 0) - 1 do
+            self:cachePartyMember(party['a1'..i], 2)            
+        end
+        for i = 0, (party.party3_count or 0) - 1 do
+            self:cachePartyMember(party['a2'..i], 3)            
+        end
     end
 end
 
@@ -554,7 +555,7 @@ end
 function EnemyBar:cachePartyMember(member, party_number)
     if member and member.mob then
         self.party_members[member.mob.id] = {is_pc = true, party = party_number}
-        if member.mob.pet_index then
+        if tracking_settings.pets and member.mob.pet_index then
             local pet = windower.ffxi.get_mob_by_index(member.mob.pet_index)
             if pet then
                 self.party_members[pet.id] = {is_pet = true, owner = member.mob.id, party = party_number}
@@ -604,7 +605,8 @@ function EnemyBar:scanClaimedMobs()
 
                 -- Case 1: mob is claimed by player or party member
                 if mob.claim_id and mob.claim_id ~= 0 then
-                    if mob.claim_id == self.player_id or self.party_members[mob.claim_id] then
+                    if mob.claim_id == self.player_id or self.party_members[mob.claim_id]
+                    or tracking_settings.outside then
                         aggressor_pc = mob.claim_id
                     end
                 end
@@ -801,7 +803,7 @@ end
 -- Additional command handlers
 function EnemyBar:handleSetCommand(args)
     if #args < 3 then
-        windower.add_to_chat(123, 'EnemyBar: Not enough arguments for set command')
+        self:showSetHelp()
         return
     end
     
@@ -810,7 +812,7 @@ function EnemyBar:handleSetCommand(args)
     local value = args[3]
     
     if not bar then
-        windower.add_to_chat(123, 'EnemyBar: Unknown bar name: "' .. args[2] .. '"')
+        windower.add_to_chat(123, 'EnemyBar: Unknown bar "' .. args[2] .. '". Use target/t, subtarget/st, focustarget/ft, aggro/a or all')
         return
     end
     
@@ -851,32 +853,64 @@ function EnemyBar:handleDemoCommand(args)
     windower.add_to_chat(207, 'EnemyBar: setup mode is now "' .. (self.state.setup and 'on' or 'off') .. '"')
 end
 
+-- Push tracking_settings into everything that uses them
+function EnemyBar:applyTrackingSettings()
+    ActionTracker.track_outside_players = tracking_settings.outside
+    self:cachePartyMembers()
+    -- Drop enmity entries that no longer qualify; the claim scan re-adds valid ones
+    for mob_id, data in pairs(ActionTracker.tracked_enmity) do
+        if data.pc and data.pc ~= self.player_id and not self.party_members[data.pc]
+        and not tracking_settings.outside then
+            ActionTracker.tracked_enmity[mob_id] = nil
+        end
+    end
+end
+
 function EnemyBar:handleTrackingCommand(args)
-    if not args[1] then
-        windower.add_to_chat(207, 'Tracking Settings:')
-        windower.add_to_chat(207, '  Party Only: ' .. (tracking_settings.track_party_only and 'ON' or 'OFF'))
-        windower.add_to_chat(207, '  Alliance: ' .. (tracking_settings.track_alliance and 'ON' or 'OFF'))
-        windower.add_to_chat(207, '  Pets: ' .. (tracking_settings.track_pets and 'ON' or 'OFF'))
-        windower.add_to_chat(207, '  Outside Players: ' .. (tracking_settings.track_outside_players and 'ON' or 'OFF'))
-        windower.add_to_chat(207, 'Commands:')
-        windower.add_to_chat(207, '  //eb tracking party - Toggle party-only tracking')
-        windower.add_to_chat(207, '  //eb tracking alliance - Toggle alliance tracking')
-        windower.add_to_chat(207, '  //eb tracking outside - Toggle non-party player tracking')
+    local opt = args[1] and args[1]:lower()
+    local function onoff(v) return v and 'ON' or 'OFF' end
+
+    if not opt then
+        windower.add_to_chat(207, 'Aggro tracking:')
+        windower.add_to_chat(207, '  Party/alliance only: ' .. onoff(not tracking_settings.outside))
+        windower.add_to_chat(207, '  Alliance (parties 2-3): ' .. onoff(tracking_settings.alliance))
+        windower.add_to_chat(207, '  Pets: ' .. onoff(tracking_settings.pets))
+        windower.add_to_chat(207, '  Outside players: ' .. onoff(tracking_settings.outside))
+        windower.add_to_chat(207, 'Commands (each takes optional on/off, otherwise toggles):')
+        windower.add_to_chat(207, '  //eb tracking party    - Party/alliance only (turns outside players off)')
+        windower.add_to_chat(207, '  //eb tracking alliance - Include alliance parties 2 and 3')
+        windower.add_to_chat(207, '  //eb tracking pets     - Include party pets')
+        windower.add_to_chat(207, '  //eb tracking outside  - Include mobs on players outside your party')
         return
     end
-    
-    if args[1] == 'party' then
-        tracking_settings.track_outside_players = not tracking_settings.track_outside_players
-        windower.add_to_chat(207, 'Track non-party players: ' .. (tracking_settings.track_outside_players and 'ON' or 'OFF'))
-    elseif args[1] == 'alliance' then
-        tracking_settings.track_alliance = not tracking_settings.track_alliance
-        windower.add_to_chat(207, 'Track alliance members: ' .. (tracking_settings.track_alliance and 'ON' or 'OFF'))
-    elseif args[1] == 'outside' then
-        tracking_settings.track_outside_players = not tracking_settings.track_outside_players
-        windower.add_to_chat(207, 'Track outside players: ' .. (tracking_settings.track_outside_players and 'ON' or 'OFF'))
-    else
-        windower.add_to_chat(123, 'Unknown tracking option: ' .. args[1])
+
+    local explicit = self:normalizeBoolean(args[2])
+    local function set(key, current)
+        if explicit == nil then return not current end
+        return explicit
     end
+
+    if opt == 'party' then
+        -- "party only" is the opposite of tracking outside players
+        tracking_settings.outside = not set('party', not tracking_settings.outside)
+        windower.add_to_chat(207, 'Party/alliance only: ' .. onoff(not tracking_settings.outside))
+    elseif opt == 'alliance' then
+        tracking_settings.alliance = set('alliance', tracking_settings.alliance)
+        windower.add_to_chat(207, 'Track alliance members: ' .. onoff(tracking_settings.alliance))
+    elseif opt == 'pets' or opt == 'pet' then
+        tracking_settings.pets = set('pets', tracking_settings.pets)
+        windower.add_to_chat(207, 'Track pets: ' .. onoff(tracking_settings.pets))
+    elseif opt == 'outside' then
+        tracking_settings.outside = set('outside', tracking_settings.outside)
+        windower.add_to_chat(207, 'Track outside players: ' .. onoff(tracking_settings.outside))
+    else
+        windower.add_to_chat(123, 'Unknown tracking option: ' .. opt .. '. Use party, alliance, pets or outside.')
+        return
+    end
+
+    settings.tracking = {alliance = tracking_settings.alliance, pets = tracking_settings.pets, outside = tracking_settings.outside}
+    settings:save()
+    self:applyTrackingSettings()
 end
 
 function EnemyBar:handleScanDebug()
@@ -927,12 +961,13 @@ function EnemyBar:showHelp()
     local helptext = {
         'Enemy Bar Enhanced v2.3 - Command List:',
         '1. profile/p [tank/healer/dps/support/list/auto] - Manage job profiles',
-        '2. set/s [setting] [target/t/subtarget/st/aggro/a/all] [value] - Configure settings',
+        '2. set/s [setting] [target/t/subtarget/st/focustarget/ft/aggro/a/all] [value] - Configure bars (//eb set for list)',
         '3. focustarget/ft/f [name/id/clear] - Set focus target',
         '4. setup/demo/debug/test - Toggle setup mode with drag functionality',
         '5. killtimer/kt/kill [toggle/reset/chainsaver/status] - Kill timer controls',
         '6. alert/alerts/fa [toggle/sounds/duration/emphasize/test/status] - Action alert system',
-        '7. limbus/lh [reset/sector/show/hide/toggle/on/off/pos/debug] - Limbus chest tracker (//eb lh help)',
+        '7. tracking [party/alliance/pets/outside] [on/off] - Aggro tracking scope',
+        '8. limbus/lh [reset/sector/show/hide/toggle/on/off/pos/debug] - Limbus chest tracker (//eb lh help)',
         '',
         'NEW in v2.3:',
         '• Limbus chest tracker for Apollyon and Temenos (formerly LimbusHelper)'
@@ -969,14 +1004,13 @@ function EnemyBar:normalizeBarName(name)
     name = name:lower()
     
     local bar_mapping = {
-        t = 'target',
-        st = 'subtarget', 
-        a = 'aggro',
-        f = 'focustarget',
-        ft = 'focustarget'
+        t = 'target', target = 'target',
+        st = 'subtarget', subtarget = 'subtarget',
+        a = 'aggro', aggro = 'aggro',
+        f = 'focustarget', ft = 'focustarget', focustarget = 'focustarget', focus = 'focustarget',
+        all = 'all',
     }
-    
-	return bar_mapping[name] or (name:match('^(target|subtarget|aggro|focustarget|all)') and name or nil)
+    return bar_mapping[name]
 end
 
 function EnemyBar:normalizeBoolean(value)
@@ -995,8 +1029,104 @@ function EnemyBar:normalizeBoolean(value)
     end
 end
 
+-- Settings that //eb set can change, by type. 'aggro' marks aggro-only settings.
+local SETTABLE = {
+    show = 'bool', show_target = 'bool', show_target_icon = 'bool', show_action = 'bool',
+    show_dist = 'bool', show_debuff = 'bool', show_prediction = 'bool',
+    show_kill_timer = 'bool', show_alerts = 'bool',
+    width = 'number', font_size = 'number', x = 'number', y = 'number',
+    font = 'string', color = 'color',
+    count = 'aggro_number', stack_padding = 'aggro_number', stack_dir = 'aggro_dir',
+}
+-- Short names: //eb set dist t on  ==  //eb set show_dist t on
+local SETTING_ALIASES = {
+    target = 'show_target', icon = 'show_target_icon', target_icon = 'show_target_icon',
+    action = 'show_action', dist = 'show_dist', distance = 'show_dist', debuff = 'show_debuff',
+    prediction = 'show_prediction', killtimer = 'show_kill_timer', kill_timer = 'show_kill_timer',
+    alerts = 'show_alerts', size = 'font_size', padding = 'stack_padding', dir = 'stack_dir',
+}
+
+function EnemyBar:showSetHelp()
+    local names = {}
+    for k in pairs(SETTABLE) do names[#names+1] = k end
+    table.sort(names)
+    windower.add_to_chat(207, 'Usage: //eb set <setting> <target|subtarget|focustarget|aggro|all> <value>')
+    windower.add_to_chat(207, '  Settings: ' .. table.concat(names, ', '))
+    windower.add_to_chat(207, '  On/off settings take on/off (or toggle); color takes R G B [alpha] (0-255)')
+    windower.add_to_chat(207, '  Aggro only: count, stack_padding, stack_dir (up/down)')
+    windower.add_to_chat(207, '  Short names: dist, action, target, icon, debuff, prediction, killtimer, alerts, size')
+end
+
 function EnemyBar:setSetting(bar, setting, value, args)
-    windower.add_to_chat(207, 'EnemyBar: Setting "' .. setting .. '" updated for "' .. bar .. '" bar')
+    setting = SETTING_ALIASES[setting] or setting
+    local kind = SETTABLE[setting]
+    if not kind then
+        windower.add_to_chat(123, 'EnemyBar: Unknown setting "' .. setting .. '"')
+        self:showSetHelp()
+        return
+    end
+
+    local bar_names = bar == 'all' and {'target', 'subtarget', 'focustarget', 'aggro'} or {bar}
+    if kind:sub(1, 6) == 'aggro_' then
+        if bar ~= 'aggro' then
+            windower.add_to_chat(123, 'EnemyBar: "' .. setting .. '" only applies to the aggro bars')
+            return
+        end
+        kind = kind:sub(7)
+    end
+
+    -- Validate and convert the value once
+    local parsed
+    if kind == 'bool' then
+        if value:lower() ~= 'toggle' then
+            parsed = self:normalizeBoolean(value)
+            if parsed == nil then
+                windower.add_to_chat(123, 'EnemyBar: "' .. setting .. '" needs on/off or toggle')
+                return
+            end
+        end
+    elseif kind == 'number' then
+        parsed = tonumber(value)
+        if not parsed or (setting ~= 'x' and setting ~= 'y' and parsed <= 0) then
+            windower.add_to_chat(123, 'EnemyBar: "' .. setting .. '" needs a positive number')
+            return
+        end
+    elseif kind == 'dir' then
+        parsed = value:lower()
+        if parsed ~= 'up' and parsed ~= 'down' then
+            windower.add_to_chat(123, 'EnemyBar: stack_dir must be up or down')
+            return
+        end
+    elseif kind == 'color' then
+        local r, g, b, a = tonumber(args[3]), tonumber(args[4]), tonumber(args[5]), tonumber(args[6] or 255)
+        local function ok(v) return v and v >= 0 and v <= 255 end
+        if not (ok(r) and ok(g) and ok(b) and ok(a)) then
+            windower.add_to_chat(123, 'EnemyBar: color needs R G B [alpha], each 0-255')
+            return
+        end
+        parsed = {red = r, green = g, blue = b, alpha = a}
+    else
+        parsed = value
+    end
+
+    for _, name in ipairs(bar_names) do
+        local bs = settings[name .. '_bar']
+        if setting == 'x' or setting == 'y' then
+            bs.pos = {x = bs.pos.x, y = bs.pos.y}
+            bs.pos[setting] = parsed
+        elseif kind == 'bool' and parsed == nil then
+            bs[setting] = not bs[setting]
+        else
+            bs[setting] = parsed
+        end
+    end
+
+    local shown = kind == 'color' and table.concat({args[3], args[4], args[5], args[6] or '255'}, ' ')
+        or (kind == 'bool' and parsed == nil) and 'toggled' or tostring(parsed)
+    windower.add_to_chat(207, 'EnemyBar: ' .. setting .. ' = ' .. shown .. ' for ' .. (bar == 'all' and 'all bars' or bar .. ' bar'))
+    if ProfileManager.auto_switch then
+        windower.add_to_chat(207, 'EnemyBar: note - auto profile switching can override this on job change (//eb profile auto off)')
+    end
     settings:save()
     self:initializeBars()
 end
@@ -1205,6 +1335,7 @@ local defaults = {
         show_prediction=true, show_kill_timer=false, show_alerts=false,
         count=6, stack_dir='down', stack_padding=27
     },
+    tracking = {alliance=true, pets=true, outside=false},
     limbus_bar = {
         pos={x=150,y=500},
         font='Grammara', font_size=8, row_spacing=14,
@@ -1223,7 +1354,13 @@ if settings_old.pos then
 end
 
 settings = config.load(defaults)
-config.register(settings, function() EnemyBar:initializeBars() end)
+config.register(settings, function()
+    tracking_settings.alliance = settings.tracking.alliance
+    tracking_settings.pets     = settings.tracking.pets
+    tracking_settings.outside  = settings.tracking.outside
+    ActionTracker.track_outside_players = tracking_settings.outside
+    EnemyBar:initializeBars()
+end)
 
 EnemyBar:cachePartyMembers()
 
