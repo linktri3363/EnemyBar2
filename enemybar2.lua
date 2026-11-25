@@ -1352,7 +1352,7 @@ local defaults = {
     tracking = {alliance=true, pets=true, outside=false},
     targetinfo_bar = {
         pos={x=1500,y=65},
-        font='Grammara', font_size=8,
+        font='Grammara', font_size=0,   -- 0 = match the target bar's font size
         show=true, show_full_id=true, show_hex_id=true, show_speed=true, show_target_name=false
     },
     limbus_bar = {

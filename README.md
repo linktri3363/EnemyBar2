@@ -146,7 +146,8 @@ in EB2's bold outlined text:
 
 It hides when you have no target. Drag it in `//eb setup` like the other bars; its position is saved.
 Settings (`targetinfo_bar` in `data/settings.xml`): `pos`, `font`, `font_size`, `show`,
-`show_full_id`, `show_hex_id`, `show_speed`, `show_target_name`.
+`show_full_id`, `show_hex_id`, `show_speed`, `show_target_name`. `font_size` 0 (the default)
+matches the target bar's font size and follows it if that changes.
 
 If you used the standalone TargetInfo addon, unload it (`//lua unload targetinfo`) and remove it from
 `scripts/init.txt`.

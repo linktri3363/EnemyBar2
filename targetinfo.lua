@@ -14,7 +14,8 @@
 
 local texts = require('texts')
 
-local DEFAULT_CFG = {pos = {x = 1500, y = 65}, font = 'Grammara', font_size = 8,
+-- font_size 0 = match the target bar's font size
+local DEFAULT_CFG = {pos = {x = 1500, y = 65}, font = 'Grammara', font_size = 0,
                      show = true, show_full_id = true, show_hex_id = true,
                      show_speed = true, show_target_name = false}
 
@@ -46,9 +47,13 @@ function TargetInfo:initialize(cfg)
     if not cfg then return end
     self.cfg = cfg
     self.x, self.y = cfg.pos.x or 0, cfg.pos.y or 0
+    local size = cfg.font_size
+    if not size or size <= 0 then
+        size = settings and settings.target_bar and settings.target_bar.font_size or 12
+    end
     self.text = texts.new('', {
         pos = {x = self.x, y = self.y},
-        text = {size = cfg.font_size, font = cfg.font, stroke = STROKE},
+        text = {size = size, font = cfg.font, stroke = STROKE},
         flags = {bold = true, draggable = false, italic = false},
         bg = {visible = false},
     })
