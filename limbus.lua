@@ -69,6 +69,10 @@ local COL = {
     header   = {200, 220, 255},
 }
 
+-- Used if settings.limbus_bar is ever missing
+local DEFAULT_CFG = {pos = {x = 150, y = 500}, font = 'Arial', font_size = 10,
+                     row_spacing = 16, show = true, show_anywhere = false}
+
 local STROKE = {width = 2, alpha = 180, red = 50, green = 50, blue = 50}
 
 -- ---------------------------------------------------------------------------
@@ -374,6 +378,12 @@ function Limbus:update(setup_mode)
         end
     end
 
+    -- Build the display lazily if EB2's init didn't (or settings were missing)
+    if not self.display then
+        if settings and not settings.limbus_bar then settings.limbus_bar = DEFAULT_CFG end
+        self:initialize(settings and settings.limbus_bar or DEFAULT_CFG)
+        self.last_error = nil
+    end
     if not self.display or not self.cfg then return end
     if not self.cfg.show then self:hideAll(); return end
 
@@ -483,6 +493,19 @@ function Limbus:handleCommand(args)
             say('Not in Apollyon or Temenos.')
         end
 
+    elseif cmd == 'status' then
+        local cfg = self.cfg or {}
+        local info = windower.ffxi.get_info()
+        say('zone id='..tostring(info and info.zone)..'  tracked zone='..tostring(self.active_zone and ZONE_NAME[self.active_zone]))
+        say('state loaded='..tostring(self.state ~= nil)..'  display built='..tostring(self.display ~= nil)
+            ..'  settings.limbus_bar='..tostring(settings and settings.limbus_bar ~= nil))
+        say('show='..tostring(cfg.show)..'  show_anywhere='..tostring(cfg.show_anywhere)
+            ..'  pos='..tostring(self.x)..','..tostring(self.y)..'  font='..tostring(cfg.font)..' '..tostring(cfg.font_size))
+        if self.display then
+            local r = self.display.rows[1]
+            say('row1 visible='..tostring((r:visible()))..'  text="'..tostring((r:text()))..'"')
+        end
+
     elseif cmd == 'debug' then
         self.debug = not self.debug
         say('Text debug: '..(self.debug and 'ON (echoing all incoming text in Limbus)' or 'OFF'))
@@ -496,6 +519,7 @@ function Limbus:handleCommand(args)
             '  show / hide / toggle - Show both zones outside Limbus',
             '  on / off - Enable or disable the module',
             '  pos - Print position and detected sector',
+            '  status - Show module state (troubleshooting)',
             '  debug - Echo incoming text (troubleshooting)',
             '  Sectors: Apollyon NW NE SW SE | Temenos N W E C',
             '  Move it with //eb setup like the other bars.',
