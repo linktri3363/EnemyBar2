@@ -181,6 +181,11 @@ status icons on the target bar:
 - If a debuff spell gets "No effect" on a mob EB2 isn't tracking that debuff on (the mob
   already has it, e.g. after a reload or when someone outside the party applied it), the
   debuff is shown with a `?` timer until it wears off, capped at the spell's full duration.
+- Stun shows for its 5-second base duration (cleared sooner by its wear-off message), and the
+  area enfeebles (Paralyga, Slowga, Silencega, Blindga, Bindga, Sleepga I/II) use their
+  single-target spell's duration. Any other debuff that lands with no known duration (e.g.
+  Curse, Virus, Poison III-V, ninjutsu debuffs) shows a `?` timer until it wears off (at most
+  3 minutes); with `keep_buff` or `auto` on, its real duration is learned when it wears off.
 - Tracked debuffs survive `//lua reload enemybar2`: they're saved on unload and restored on
   load if you're still in the same zone (within 30 minutes), with their timers intact.
 

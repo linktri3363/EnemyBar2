@@ -53,7 +53,20 @@ local add_seq = 0
 local function next_seq() add_seq = add_seq + 1; return add_seq end
 local durations, duration_profiles = {}, {}
 
-local debuffs_map = {}
+-- Spells Windower's resources give no status/duration for. Stun's wear-off
+-- message usually clears it first; 5s is the base duration.
+local debuffs_map = { [252] = {effect = 10, duration = 5} }
+
+-- Area (-ga) enfeebles have no duration in resources: use the single-target spell's
+local GA_SINGLE = { [356]=58, [357]=56, [359]=59, [361]=254, [362]=258, [363]=253, [364]=259 }
+local function ga_duration(spell)
+    local single = GA_SINGLE[spell]
+    return single and res.spells[single] and res.spells[single].duration or nil
+end
+
+-- A debuff that lands with no known duration is shown with a "?" timer until
+-- the game says it wore off, capped here (seconds)
+local UNKNOWN_CAP = 180
 local absorb_map = {
   [242]={effect=242,duration=90},[266]={effect=266,duration=90},[267]={effect=267,duration=90},[268]={effect=268,duration=90},
   [269]={effect=269,duration=90},[270]={effect=270,duration=90},[271]={effect=271,duration=90},[272]={effect=272,duration=90}
@@ -193,6 +206,14 @@ local function remove_debuff(target, effect, opts)
     if not (debuffed_mobs[target] and debuffed_mobs[target][effect]) then return end
     local e = debuffed_mobs[target][effect]
 
+    -- Unknown-duration debuff wearing off: the time since it landed is its duration
+    if type(e) == 'table' and e.unknown_dur and e.applied_at and not e.no_hint and not opts.no_hint
+    and not (simulation_mode and player and target == player.id)
+    and cfg().keep_buff_after_timer and os.clock() < (e.timer or 0) then
+        e.expired_at = e.applied_at
+        e.base_dur = 0
+    end
+
     -- Timer hint / auto-learn: when a debuff that outlived its timer finally
     -- wears off, its real duration is base + overtime.
     if type(e) == 'table' and e.expired_at and not e.no_hint and not opts.no_hint
@@ -248,7 +269,15 @@ local function apply_debuff(target, effect, spell_id, duration, label_effect)
     if not handle_overwrites(target, spell_id, overwrites) then return end
     local name = (others and others.blue_magic and others.blue_magic[spell_id] and others.blue_magic[spell_id].en)
               or (res.spells[spell_id] and res.spells[spell_id].en) or 'Unknown'
-    debuffed_mobs[target][effect] = { id = spell_id, name = name, timer = os.clock() + (duration or 0), base_dur = tonumber(duration or 0) or 0, expired_at = nil }
+    local dur = tonumber(duration or 0) or 0
+    if dur > 0 then
+        debuffed_mobs[target][effect] = { id = spell_id, name = name, timer = os.clock() + dur, base_dur = dur, expired_at = nil }
+    else
+        -- Unknown duration: show "?" until it wears off; the wear-off time is learnable
+        local now = os.clock()
+        debuffed_mobs[target][effect] = { id = spell_id, name = name, timer = now + UNKNOWN_CAP, base_dur = 0,
+                                          expired_at = nil, unknown_dur = true, applied_at = now }
+    end
     local needs_label = label_effect or (debuffs_map[spell_id] and type(debuffs_map[spell_id].effect) == 'table')
     if needs_label and res.buffs[effect] then
         debuffed_mobs[target][effect].name = name..' ('..res.buffs[effect].en..')'
@@ -320,6 +349,7 @@ local function inc_action(act)
                                   or (EXTREMES[spell] and EXTREMES[spell].duration)
                                   or (bm and bm.duration)
                                   or (res.spells[spell] and res.spells[spell].duration)
+                                  or ga_duration(spell)
                                   or (debuffs_map[spell] and debuffs_map[spell].duration)
                                   or (absorb_map[spell] and absorb_map[spell].duration)
                                   or 0
@@ -560,7 +590,7 @@ local function expire_timers()
     for tid, tbl in pairs(debuffed_mobs) do
         for effect, sp in pairs(tbl) do
             if type(sp) == 'table' and (sp.timer or 0) < now then
-                if cfg().keep_buff_after_timer and not sp.unknown then
+                if cfg().keep_buff_after_timer and not sp.unknown and not sp.unknown_dur then
                     if not sp.expired_at then sp.expired_at = sp.timer end
                 else
                     remove_debuff(tid, effect)
@@ -774,7 +804,7 @@ function Debuffs:entriesFor(tid)
             local icon = icon_for(effect, sp)
             if icon then
                 out[#out+1] = {icon = icon, seq = sp.seq, remain = (sp.timer or 0) - now,
-                               up = sp.expired_at and (now - sp.expired_at) or nil, unknown = sp.unknown}
+                               up = sp.expired_at and (now - sp.expired_at) or nil, unknown = sp.unknown or sp.unknown_dur}
             end
         end
     end
