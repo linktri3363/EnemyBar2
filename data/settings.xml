@@ -44,6 +44,7 @@
             <auto_update_enabled>false</auto_update_enabled>
             <icon_size>20</icon_size>
             <keep_buff_after_timer>false</keep_buff_after_timer>
+            <learn_window>5</learn_window>
             <max_icons>10</max_icons>
             <offset_y>0</offset_y>
             <show>true</show>
@@ -131,6 +132,7 @@
                 <x>650</x>
                 <y>100</y>
             </pos>
+            <prediction_x>0</prediction_x>
             <show>true</show>
             <show_action>true</show_action>
             <show_alerts>true</show_alerts>
@@ -178,6 +180,8 @@
             </pos>
         </debuff_details>
         <debuffs>
+            <auto_update_enabled>true</auto_update_enabled>
+            <keep_buff_after_timer>true</keep_buff_after_timer>
             <spacing>15</spacing>
             <x>193</x>
         </debuffs>
@@ -268,9 +272,10 @@
                 <blue>100</blue>
             </color>
             <pos>
-                <x>690</x>
+                <x>700</x>
                 <y>70</y>
             </pos>
+            <prediction_x>574.54803466797</prediction_x>
             <show_kill_timer>true</show_kill_timer>
             <width>800</width>
         </target_bar>
