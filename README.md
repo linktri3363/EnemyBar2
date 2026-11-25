@@ -183,7 +183,7 @@ status icons on the target bar:
   debuff is shown with a `?` timer until it wears off, capped at the spell's full duration.
 - Stun shows for its 5-second base duration (cleared sooner by its wear-off message; set your
   own with `//eb df {Stun} <seconds>`), and Sleepga / Sleepga II use Sleep / Sleep II's duration. Any other debuff that lands with no known duration (e.g.
-  Curse, Virus, Poison III-V, ninjutsu debuffs) shows a `?` timer until it wears off (at most
+  Jubaku, Hojo, Kurayami, Dokumori, Venom Shell, Hysteric Barrage) shows a `?` timer until it wears off (at most
   3 minutes); with `keep_buff` or `auto` on, its real duration is learned when it wears off.
 - Tracked debuffs survive `//lua reload enemybar2`: they're saved on unload and restored on
   load if you're still in the same zone (within 30 minutes), with their timers intact.
