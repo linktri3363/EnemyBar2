@@ -1207,7 +1207,7 @@ local defaults = {
     },
     limbus_bar = {
         pos={x=150,y=500},
-        font='Grammara', font_size=10, row_spacing=16,
+        font='Grammara', font_size=8, row_spacing=14,
         show=true, show_anywhere=false
     }
 }
