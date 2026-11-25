@@ -4,8 +4,8 @@
 
     Tracks the four treasure-chest sectors in Apollyon and Temenos and shows
     whether each one gave the standard reward (3,000 units) or the bonus
-    (5,000 units). Drawn with EnemyBar2's own bar textures and text style.
-    After a bonus the gold bar drains for 5 seconds, then the zone resets.
+    (5,000 units). Text-only, in EnemyBar2's bold stroked font: green
+    Opened, red Unopened, gold BONUS! for the 5 seconds before the zone resets.
 
     Apollyon chests: NW (-211, 542, 0)   NE (214, 542, 0)
                      SW (-109, -429, 0)  SE (112, -430, 0)
@@ -14,7 +14,6 @@
 ]]
 
 local config = require('config')
-local images = require('images')
 local texts  = require('texts')
 
 -- ---------------------------------------------------------------------------
@@ -51,7 +50,6 @@ local CHEST_DIST      = 20   -- yalms; must be this close to a chest to count
 local RECORD_COOLDOWN = 10   -- seconds between automatic recordings (debounce)
 local RESET_DELAY     = 5    -- seconds after a bonus before the zone resets
 
-local BAR_HEIGHT    = 12
 local HEADER_GAP    = 6      -- space between header text and first bar
 local ZONE_GAP      = 10     -- extra space between the two zones when both show
 local MAX_ROWS      = 8
@@ -63,13 +61,12 @@ for _, m in ipairs({1, 2, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 212, 213, 214})
     CHAT_MODES[m] = true
 end
 
--- Row colours. Every state draws a solid fill bar (EB2's bg_body texture is
--- nearly transparent, so an "empty" bar would be invisible in game).
+-- Text colours by state
 local COL = {
-    unopened = {fg = {170, 30, 30},  text = {255, 215, 215}},
-    opened   = {fg = {0, 170, 60},   text = {255, 255, 255}},
-    bonus    = {fg = {255, 200, 0},  text = {255, 250, 220}},
-    header   = {80, 255, 128},
+    unopened = {255, 90, 90},
+    opened   = {80, 255, 128},
+    bonus    = {255, 215, 0},
+    header   = {200, 220, 255},
 }
 
 local STROKE = {width = 2, alpha = 180, red = 50, green = 50, blue = 50}
@@ -261,20 +258,8 @@ function Limbus:handleText(original, mode)
 end
 
 -- ---------------------------------------------------------------------------
--- Display (EB2 look: tinted bar textures + bold stroked Arial)
+-- Display (EB2 look: bold stroked Arial, colour by state)
 -- ---------------------------------------------------------------------------
-local function new_image(path)
-    return images.new({
-        pos = {x = 0, y = 0},
-        visible = false,
-        color = {alpha = 255, red = 255, green = 255, blue = 255},
-        size = {width = 1, height = BAR_HEIGHT},
-        texture = {path = windower.addon_path..path, fit = true},
-        repeatable = {x = 1, y = 1},
-        draggable = false,
-    })
-end
-
 local function new_text(cfg, scale)
     return texts.new('', {
         pos = {x = 0, y = 0},
@@ -287,9 +272,7 @@ end
 local function element_list(d)
     local list = {}
     for _, h in ipairs(d.headers) do list[#list+1] = h end
-    for _, r in ipairs(d.rows) do
-        list[#list+1] = r.fg; list[#list+1] = r.label
-    end
+    for _, r in ipairs(d.rows) do list[#list+1] = r end
     return list
 end
 
@@ -310,10 +293,7 @@ function Limbus:initialize(cfg)
     local d = {headers = {}, rows = {}}
     for i = 1, MAX_HEADERS do d.headers[i] = new_text(cfg, 0.9) end
     for i = 1, MAX_ROWS do
-        d.rows[i] = {
-            fg    = new_image('fg_body.png'),
-            label = new_text(cfg, 1),
-        }
+        d.rows[i] = new_text(cfg, 1)
     end
     self.display = d
 end
@@ -324,13 +304,11 @@ function Limbus:hideAll()
 end
 
 -- Lays out and paints a list of zone views:
--- views = { {title=, rows={ {sector=, status=, frac=, remaining=} ...}} ... }
+-- views = { {title=, rows={ {sector=, status=} ...}} ... }
 function Limbus:render(views)
     local d, cfg = self.display, self.cfg
     if not d then return end
-    local w = cfg.width
     local spacing = cfg.row_spacing
-    local text_dy = 3 + (14 - cfg.font_size) / 4
     local header_h = math.floor(cfg.font_size * 0.9) + HEADER_GAP + 4
 
     local y = self.y
@@ -347,26 +325,11 @@ function Limbus:render(views)
         for _, rv in ipairs(view.rows) do
             ri = ri + 1
             local r = d.rows[ri]
-            local c = COL[rv.status]
-            -- Unopened shows a full red bar; others fill by their fraction
-            local frac = rv.status == 'unopened' and 1 or (rv.frac or 0)
-            r.fg:pos(self.x, y)
-            local fw = math.floor(w * frac)
-            if fw > 0 then
-                r.fg:width(fw)
-                r.fg:color(c.fg[1], c.fg[2], c.fg[3])
-                r.fg:show()
-            else
-                r.fg:hide()
-            end
-
             local tag = rv.status == 'bonus' and 'BONUS!' or rv.status == 'opened' and 'Opened' or 'Unopened'
-            if rv.remaining then tag = tag..' '..rv.remaining..'s' end
-            r.label:text(rv.sector..': '..tag)
-            r.label:color(c.text[1], c.text[2], c.text[3])
-            r.label:pos(self.x + math.floor(w / 100) + 2, y + text_dy)
-
-            r.label:show()
+            r:text(rv.sector..': '..tag)
+            r:color(unpack(COL[rv.status]))
+            r:pos(self.x, y)
+            r:show()
             y = y + spacing
         end
         y = y + ZONE_GAP
@@ -374,34 +337,15 @@ function Limbus:render(views)
 
     -- Hide anything unused
     for i = hi + 1, MAX_HEADERS do d.headers[i]:hide() end
-    for i = ri + 1, MAX_ROWS do
-        local r = d.rows[i]
-        r.fg:hide(); r.label:hide()
-    end
+    for i = ri + 1, MAX_ROWS do d.rows[i]:hide() end
 end
 
-function Limbus:zoneView(zone_id, now)
+function Limbus:zoneView(zone_id)
     local rows, opened = {}, 0
     for _, s in ipairs(ZONE_SECTORS[zone_id]) do
         local st = self.tracking[zone_id][s]
-        local rv = {sector = s}
-        if st == 'bonus' then
-            rv.status = 'bonus'
-            local fire = self.pending[zone_id]
-            if fire then
-                local left = math.max(0, fire - now)
-                rv.frac = left / RESET_DELAY
-                rv.remaining = math.ceil(left)
-            else
-                rv.frac = 1
-            end
-        elseif st == 'std' then
-            rv.status, rv.frac = 'opened', 1
-        else
-            rv.status, rv.frac = 'unopened', 0
-        end
+        rows[#rows+1] = {sector = s, status = st == 'bonus' and 'bonus' or st == 'std' and 'opened' or 'unopened'}
         if st then opened = opened + 1 end
-        rows[#rows+1] = rv
     end
     return {title = ZONE_NAME[zone_id]..'  '..opened..' / '..#rows, rows = rows}
 end
@@ -410,10 +354,10 @@ local function demo_views()
     return {{
         title = 'Temenos  2 / 4',
         rows = {
-            {sector = 'N', status = 'opened',   frac = 1},
-            {sector = 'W', status = 'unopened', frac = 0},
-            {sector = 'E', status = 'bonus',    frac = 0.6, remaining = 3},
-            {sector = 'C', status = 'unopened', frac = 0},
+            {sector = 'N', status = 'opened'},
+            {sector = 'W', status = 'unopened'},
+            {sector = 'E', status = 'bonus'},
+            {sector = 'C', status = 'unopened'},
         },
     }}
 end
@@ -436,10 +380,10 @@ function Limbus:update(setup_mode)
     if setup_mode then
         self:render(demo_views())
     elseif self.active_zone then
-        self:render({self:zoneView(self.active_zone, now)})
+        self:render({self:zoneView(self.active_zone)})
     elseif self.cfg.show_anywhere then
         local views = {}
-        for _, z in ipairs(ZONE_ORDER) do views[#views+1] = self:zoneView(z, now) end
+        for _, z in ipairs(ZONE_ORDER) do views[#views+1] = self:zoneView(z) end
         self:render(views)
     else
         self:hideAll()

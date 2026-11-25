@@ -117,17 +117,17 @@ you can start looking for the next one.
 - **Automatic detection**: Reads the "Acquired ... Units" message and works out the sector from
   the nearest chest. Rewards from anything that isn't near a chest (such as a ???) are ignored,
   and so are lines typed in player chat.
-- **Display**: One EB2-style bar per sector, drawn with the same textures and fonts as the other bars
-  - Red, empty bar: Unopened
-  - Green, full bar: Opened (standard reward)
-  - Gold bar: Bonus. The bar drains over 5 seconds as the reset countdown.
+- **Display**: One line per sector in EB2's bold, outlined text
+  - Red: Unopened
+  - Green: Opened
+  - Gold "BONUS!": the bonus chest, shown for the 5 seconds before the zone resets
 - **Visibility**: Shows automatically in Apollyon and Temenos. `//eb lh show` (or `toggle`) also shows
   both zones everywhere else; `//eb lh hide` turns that off again.
 - **Moving it**: `//eb setup` shows a sample of the module; drag it anywhere like the other bars
   (hold Ctrl to snap to a 10-pixel grid). Its position is saved.
 - **Saved progress**: Per character in `data/limbus_<CharName>.xml`, so several characters running at
   once never overwrite each other. A reset interrupted by a reload or crash finishes on the next load.
-- **Settings** (`limbus_bar` in `data/settings.xml`): `pos`, `width`, `font`, `font_size`,
+- **Settings** (`limbus_bar` in `data/settings.xml`): `pos`, `font`, `font_size`,
   `row_spacing`, `show`, `show_anywhere`
 
 If you previously used the standalone LimbusHelper addon, unload it (`//lua unload limbushelper`) and
@@ -256,7 +256,7 @@ enemybar2/
 ## Version History
 
 ### v2.3 (Current)
-- Added the Limbus chest tracker module (ported from LimbusHelper v1.06), with its own draggable position
+- Added the Limbus chest tracker module (ported from LimbusHelper v1.06): text-only, with its own draggable position
 
 ### v2.2
 - Performance optimizations and memory management
