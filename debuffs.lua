@@ -26,7 +26,7 @@ local BAR_HEIGHT = 12
 local ICON_PATH  = windower.addon_path..'icons/buffs/'
 
 local DEFAULT_CFG = {
-    show = true, icon_size = 20, spacing = 1, max_icons = 10,
+    show = true, icon_size = 20, spacing = 6, max_icons = 10,
     anchor = 'left', x = 0, offset_y = 0,
     timers = true, timer_font = 'Grammara', timer_size = 8,
     show_th = true,
@@ -975,6 +975,7 @@ function Debuffs:handleCommand(args)
             '  timer [on|off]               - timers under the icons',
             '  th [on|off]                  - Treasure Hunter level next to the icons',
             '  size <12-40> | max <1-20>    - icon size / most icons shown',
+            '  spacing <0-30>               - gap between icons (pixels)',
             '  anchor left|right            - which end of the bar the icons start from',
             '  x <pixels>                   - distance from that end (or drag them in //eb setup)',
             '  y <pixels>                   - nudge the icons up (-) or down (+)',
@@ -1009,6 +1010,9 @@ function Debuffs:handleCommand(args)
 
     elseif cmd == 'size' then
         set_number('icon_size', commands[2], 12, 40, 'Icon size')
+
+    elseif cmd == 'spacing' or cmd == 'gap' then
+        set_number('spacing', commands[2], 0, 30, 'Icon spacing')
 
     elseif cmd == 'max' then
         set_number('max_icons', commands[2], 1, 20, 'Max icons')
