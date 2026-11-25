@@ -178,6 +178,7 @@
             </pos>
         </debuff_details>
         <debuffs>
+            <spacing>15</spacing>
             <x>193</x>
         </debuffs>
         <focustarget_bar>
@@ -236,6 +237,8 @@
             </pos>
         </debuff_details>
         <debuffs>
+            <auto_update_enabled>true</auto_update_enabled>
+            <keep_buff_after_timer>true</keep_buff_after_timer>
             <spacing>15</spacing>
             <x>225</x>
         </debuffs>
