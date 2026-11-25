@@ -236,8 +236,8 @@
             </pos>
         </debuff_details>
         <debuffs>
-            <spacing>10</spacing>
-            <x>193</x>
+            <spacing>15</spacing>
+            <x>225</x>
         </debuffs>
         <focustarget_bar>
             <pos>
