@@ -70,7 +70,7 @@ local COL = {
 }
 
 -- Used if settings.limbus_bar is ever missing
-local DEFAULT_CFG = {pos = {x = 150, y = 500}, font = 'Arial', font_size = 10,
+local DEFAULT_CFG = {pos = {x = 150, y = 500}, font = 'Grammara', font_size = 10,
                      row_spacing = 16, show = true, show_anywhere = false}
 
 local STROKE = {width = 2, alpha = 180, red = 50, green = 50, blue = 50}
