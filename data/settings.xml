@@ -28,6 +28,32 @@
             <stack_padding>27</stack_padding>
             <width>600</width>
         </aggro_bar>
+        <debuff_details>
+            <font>Grammara</font>
+            <font_size>0</font_size>
+            <pos>
+                <x>1300</x>
+                <y>120</y>
+            </pos>
+            <show>true</show>
+            <show_shots>true</show_shots>
+        </debuff_details>
+        <debuffs>
+            <anchor>left</anchor>
+            <auto_profiles_enabled>false</auto_profiles_enabled>
+            <auto_update_enabled>false</auto_update_enabled>
+            <icon_size>20</icon_size>
+            <keep_buff_after_timer>false</keep_buff_after_timer>
+            <max_icons>10</max_icons>
+            <offset_y>0</offset_y>
+            <show>true</show>
+            <show_th>true</show_th>
+            <spacing>1</spacing>
+            <timer_font>Grammara</timer_font>
+            <timer_size>8</timer_size>
+            <timers>true</timers>
+            <x>0</x>
+        </debuffs>
         <focustarget_bar>
             <color>
                 <alpha>255</alpha>
@@ -116,6 +142,24 @@
             <show_target_icon>true</show_target_icon>
             <width>600</width>
         </target_bar>
+        <targetinfo_bar>
+            <font>Grammara</font>
+            <font_size>0</font_size>
+            <pos>
+                <x>1500</x>
+                <y>65</y>
+            </pos>
+            <show>true</show>
+            <show_full_id>true</show_full_id>
+            <show_hex_id>true</show_hex_id>
+            <show_speed>true</show_speed>
+            <show_target_name>false</show_target_name>
+        </targetinfo_bar>
+        <tracking>
+            <alliance>true</alliance>
+            <outside>false</outside>
+            <pets>true</pets>
+        </tracking>
     </global>
     <judgespedd>
         <aggro_bar>
@@ -170,10 +214,19 @@
                 <y>100</y>
             </pos>
         </aggro_bar>
+        <debuff_details>
+            <pos>
+                <x>1510</x>
+                <y>150</y>
+            </pos>
+        </debuff_details>
+        <debuffs>
+            <x>193</x>
+        </debuffs>
         <focustarget_bar>
             <pos>
-                <x>970</x>
-                <y>210</y>
+                <x>960</x>
+                <y>220</y>
             </pos>
         </focustarget_bar>
         <limbus_bar>
@@ -202,5 +255,11 @@
             <show_kill_timer>true</show_kill_timer>
             <width>800</width>
         </target_bar>
+        <targetinfo_bar>
+            <pos>
+                <x>1510</x>
+                <y>90</y>
+            </pos>
+        </targetinfo_bar>
     </linktri>
 </settings>
