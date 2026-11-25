@@ -956,14 +956,22 @@ function Debuffs:draw(bar, entries, th_text)
         end
     end
 
-    -- TH sits just past the far end of the icon row
+    -- TH: its own spot on the bar if one was set (th_x), otherwise just past
+    -- the far end of the icon row
     if c.show_th and th_text then
         local w = #th_text * char_w
-        local tx = left_anchor and (far_edge + 4) or (far_edge - w - 4)
-        if n == 0 then tx = left_anchor and ax or (ax - w) end
+        local tx
+        if c.th_x then
+            tx = bar.x + 1 + math.max(0, math.min(bar.width, c.th_x))
+        else
+            tx = left_anchor and (far_edge + 4) or (far_edge - w - 4)
+            if n == 0 then tx = left_anchor and ax or (ax - w) end
+        end
+        local ty = icon_y + math.floor((size - c.timer_size) / 2) - 2
         self.th:text(th_text)
-        self.th:pos(math.floor(tx), icon_y + math.floor((size - c.timer_size) / 2) - 2)
+        self.th:pos(math.floor(tx), ty)
         self.th:show()
+        DebuffTH.x, DebuffTH.y = math.floor(tx), ty
     else
         self.th:hide()
     end
@@ -1060,6 +1068,22 @@ function DebuffDetails:move(x, y)
     self.x, self.y = x, y
     dcfg().pos = {x = x, y = y}
     if self.text then self.text:pos(x, y) end
+end
+
+-- ---- dragging the TH label (setup mode): sideways only, clamped to the bar ----
+DebuffTH = { x = 0, y = 0 }
+
+function DebuffTH:hover(x, y)
+    local t = Debuffs.th
+    return t ~= nil and t:visible() and t:hover(x, y) or false
+end
+
+function DebuffTH:move(x, y)
+    local bar = Debuffs.bar
+    if not bar then return end
+    local c = cfg()
+    c.th_x = math.max(0, math.min(bar.width, math.floor(x - bar.x - 1)))
+    Debuffs:draw(bar, Debuffs.demo_entries, 'TH4')   -- y never changes
 end
 
 -- ---- dragging the icon row (setup mode): sideways only, clamped to the bar ----
@@ -1184,6 +1208,7 @@ function Debuffs:runCommand(args)
             '  on | off                     - show or hide debuff icons on the target bar',
             '  timer [on|off]               - timers under the icons',
             '  th [on|off]                  - Treasure Hunter level next to the icons',
+            '  th_x <pixels>|auto           - TH position on the bar (or drag it in //eb setup)',
             '  size <12-40> | max <1-20>    - icon size / most icons shown',
             '  spacing <0-30>               - gap between icons (pixels)',
             '  anchor left|right            - which end of the bar the icons start from',
@@ -1216,6 +1241,13 @@ function Debuffs:runCommand(args)
 
     elseif cmd == 'timer' or cmd == 'timers' then
         set_toggle('timers', commands[2], 'Timers')
+
+    elseif cmd == 'th_x' then
+        local v = tostring(commands[2] or ''):lower()
+        if v == 'auto' then c.th_x = nil; save_cfg(); log('TH follows the icon row.'); return end
+        local n = tonumber(v)
+        if not n or n < 0 then log('Usage: //eb df th_x <pixels from the bar\'s left edge>|auto'); return end
+        c.th_x = math.floor(n); save_cfg(); log('TH at '..c.th_x..'px from the bar\'s left edge.')
 
     elseif cmd == 'th' then
         set_toggle('show_th', commands[2], 'Treasure Hunter')

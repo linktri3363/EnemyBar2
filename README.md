@@ -144,6 +144,7 @@ With auto profile switching on, changing jobs can overwrite these (`//eb profile
 //eb df on / off                      - Show or hide the debuff icons
 //eb df timer [on/off]                - Timers under the icons
 //eb df th [on/off]                   - Treasure Hunter level next to the icons
+//eb df th_x <pixels>|auto            - TH position on the bar (auto = follows the icon row)
 //eb df size <12-40>                  - Icon size (default 20)
 //eb df max <1-20>                    - Most icons shown (default 10)
 //eb df spacing <0-30>                - Gap between icons in pixels (default 6)
@@ -177,7 +178,8 @@ status icons on the target bar:
   With `keep_buff` on, an expired debuff stays with a green `+seconds` overtime counter until
   the game says it wore off, which is how real durations are learned.
 - Step debuffs show the daze icon for their current level.
-- The Treasure Hunter level (e.g. `TH4`) appears just past the end of the icon row.
+- The Treasure Hunter level (e.g. `TH4`) appears just past the end of the icon row, or at its
+  own spot on the bar once you drag it sideways in `//eb setup` (`th_x auto` to follow the row again).
 - Debuffs clear when they wear off, when the mob dies or despawns, and when Erase-type
   abilities remove them; sleep, petrify and terror clear when the mob acts.
 - If a debuff spell gets "No effect" on a mob EB2 isn't tracking that debuff on (the mob

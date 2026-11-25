@@ -1290,7 +1290,7 @@ windower.register_event('mouse', function(type, x, y, delta, blocked)
         
         -- Modules first: the debuff icons sit on top of the target bar, so they
         -- must win the click (they only slide sideways along the bar)
-        for _, module in ipairs({Debuffs, DebuffDetails, Limbus, TargetInfo}) do
+        for _, module in ipairs({DebuffTH, Debuffs, DebuffDetails, Limbus, TargetInfo}) do
             if module:hover(x, y) then
                 dragged = {module = module, x = x, y = y}
                 return true
