@@ -126,3 +126,6 @@ screenshots/
 !attention.png
 !icons/
 !icons/*.png
+
+# Status icons used by the debuffs module
+!icons/buffs/*.png

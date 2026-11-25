@@ -1,11 +1,11 @@
 --[[
 Enhanced EnemyBar2 with HP Prediction, Smart Filtering, Profile System, and Kill Timer
-Version 2.4 - Limbus chest tracker and TargetInfo modules
+Version 2.5 - Limbus, TargetInfo and Debuffs modules
 --]]
 
 _addon.name = 'enemybar2'
 _addon.author = 'Mmckee, Akaden, Twisted, Linktri, Claude'
-_addon.version = '2.4.0'
+_addon.version = '2.5.0'
 _addon.language = 'English'
 _addon.commands = {'enemybar','eb'}
 
@@ -21,6 +21,7 @@ require('bars')
 require('actionTracking')
 require('limbus')
 require('targetinfo')
+require('debuffs')
 
 -- Aggro tracking scope. Loaded from settings.tracking (see defaults below)
 -- and applied by cachePartyMembers / scanClaimedMobs / the threat score.
@@ -794,6 +795,8 @@ function EnemyBar:handleCommand(c, ...)
             Limbus:handleCommand(args)
         elseif c == 'targetinfo' or c == 'ti' then
             TargetInfo:handleCommand(args)
+        elseif c == 'df' or c == 'debuffs' or c == 'debuffing' then
+            Debuffs:handleCommand(args)
         else
             windower.add_to_chat(123, 'Unknown command: ' .. c .. '. Use //eb help for available commands.')
         end
@@ -963,7 +966,7 @@ end
 
 function EnemyBar:showHelp()
     local helptext = {
-        'Enemy Bar Enhanced v2.4 - Command List:',
+        'Enemy Bar Enhanced v2.5 - Command List:',
         '1. profile/p [tank/healer/dps/support/list/auto] - Manage job profiles',
         '2. set/s [setting] [target/t/subtarget/st/focustarget/ft/aggro/a/all] [value] - Configure bars (//eb set for list)',
         '3. focustarget/ft/f [name/id/clear] - Set focus target',
@@ -973,10 +976,12 @@ function EnemyBar:showHelp()
         '7. tracking [party/alliance/pets/outside] [on/off] - Aggro tracking scope',
         '8. limbus/lh [reset/sector/show/hide/toggle/on/off/pos/debug] - Limbus chest tracker (//eb lh help)',
         '9. targetinfo/ti [on/off/id/hex/speed/name] - Target ID, hex ID and speed (//eb ti help)',
+        '10. df/debuffs [help] - Debuff icons and timers on the target bar (//eb df help)',
         '',
-        'NEW in v2.3 / v2.4:',
+        'NEW in v2.3 - v2.5:',
         '• Limbus chest tracker for Apollyon and Temenos (formerly LimbusHelper)',
-        '• TargetInfo: target ID, hex ID and speed (formerly the TargetInfo addon)'
+        '• TargetInfo: target ID, hex ID and speed (formerly the TargetInfo addon)',
+        '• Debuff icons with timers on the target bar (formerly the Debuffing addon)'
     }
     for _, line in ipairs(helptext) do
         windower.add_to_chat(207, line)
@@ -1169,6 +1174,12 @@ local function mainUpdate()
         EnemyBar:updateBarSafe(EnemyBar.bars.focustarget, nil, false)
         EnemyBar:updateAggroBars(false)
     end
+
+    -- Debuff icons ride on the target bar, so draw them after it updates
+    local dok, derr = pcall(Debuffs.update, Debuffs, EnemyBar.state.setup, EnemyBar.bars.target)
+    if not dok then
+        windower.add_to_chat(123, 'EnemyBar: Debuffs update error - ' .. tostring(derr))
+    end
     
     -- Periodic cleanup
     EnemyBar.state.cleanup_counter = EnemyBar.state.cleanup_counter + 1
@@ -1350,6 +1361,11 @@ local defaults = {
         count=6, stack_dir='down', stack_padding=27
     },
     tracking = {alliance=true, pets=true, outside=false},
+    debuffs = {
+        show=true, icon_size=20, spacing=1, max_icons=10, offset_x=-2, offset_y=0,
+        timers=true, timer_font='Grammara', timer_size=8, show_th=true,
+        keep_buff_after_timer=false, auto_update_enabled=false, auto_profiles_enabled=false
+    },
     targetinfo_bar = {
         pos={x=1500,y=65},
         font='Grammara', font_size=0,   -- 0 = match the target bar's font size
@@ -1384,5 +1400,5 @@ end)
 EnemyBar:cachePartyMembers()
 
 -- Welcome message
-windower.add_to_chat(207, 'EnemyBar Enhanced v2.4 loaded! Limbus tracker (//eb lh help) and TargetInfo (//eb ti help) included.')
+windower.add_to_chat(207, 'EnemyBar Enhanced v2.5 loaded! Limbus (//eb lh), TargetInfo (//eb ti) and Debuffs (//eb df) included.')
 windower.add_to_chat(207, 'Use //eb help for commands, //eb profile list for job profiles.')

@@ -1,4 +1,4 @@
-# EnemyBar Enhanced v2.4
+# EnemyBar Enhanced v2.5
 
 An advanced enemy tracking and threat management addon for Final Fantasy XI (Windower).
 
@@ -17,6 +17,7 @@ EnemyBar Enhanced provides comprehensive enemy tracking with HP prediction, smar
 - **Job-Specific Profiles** - Auto-switching configurations optimized per job
 - **Limbus Chest Tracker** - Tracks the four treasure chests in Apollyon and Temenos (formerly the LimbusHelper addon)
 - **TargetInfo** - Target's ID, hex ID and movement speed (formerly the TargetInfo addon)
+- **Debuff Icons** - Your party's debuffs on the target, as icons with timers on the target bar (formerly the Debuffing addon)
 
 ### Enhanced Tracking
 - **Threat Scoring** - Advanced algorithm considering distance, HP, enmity, and debuffs
@@ -38,6 +39,8 @@ EnemyBar Enhanced provides comprehensive enemy tracking with HP prediction, smar
    - `bars.lua` - UI rendering system
    - `limbus.lua` - Limbus chest tracker
    - `targetinfo.lua` - Target ID / hex ID / speed
+   - `debuffs.lua`, `debuffs_bluemagic.lua` - Debuff tracking and icons
+   - `icons/buffs/` - Status effect icons
    - `settings.xml` - Configuration file
    - Image assets (bg_cap.png, bg_body.png, fg_body.png, etc.)
 
@@ -133,6 +136,51 @@ With auto profile switching on, changing jobs can overwrite these (`//eb profile
 //eb ti name [on/off]     - Claim / target name line (off by default)
 //eb ti help              - Show TargetInfo commands
 ```
+
+### Debuffs
+`//eb df`, `//eb debuffs` and `//eb debuffing` all work.
+```
+//eb df on / off                      - Show or hide the debuff icons
+//eb df timer [on/off]                - Timers under the icons
+//eb df th [on/off]                   - Treasure Hunter level next to the icons
+//eb df size <12-40>                  - Icon size (default 20)
+//eb df max <1-20>                    - Most icons shown (default 10)
+//eb df offset <x> <y>                - Nudge the icons in pixels
+//eb df keep_buff [on/off]            - Keep expired debuffs with a +seconds counter
+//eb df auto [on/off]                 - Auto-learn real durations (also turns keep_buff on/off)
+//eb df auto_profiles [on/off]        - Per-main-job duration profiles
+//eb df {Spell Name}|ID <secs|remove> - Set or remove a duration override
+//eb df save|load|delete <name>, list - Duration profiles
+//eb df reset                         - Remove all duration overrides
+//eb df test {Spell}|ID [remove]      - Simulate a debuff (shown on the target bar)
+//eb df test clear                    - Remove simulated debuffs
+//eb df clear                         - Wipe all tracked debuffs
+```
+
+## Debuff Icons
+
+Tracks the debuffs your party and pets land on enemies (spells, blue magic, absorbs, steps,
+blood pacts, Angon/Tomahawk-type abilities) and shows the ones on your current target as
+status icons on the target bar:
+
+- The newest debuff sits at the bar's right edge; as more land, older ones shift left.
+- A timer under each icon counts down in seconds and turns orange in the last 10 seconds.
+  With `keep_buff` on, an expired debuff stays with a green `+seconds` overtime counter until
+  the game says it wore off, which is how real durations are learned.
+- Step debuffs show the daze icon for their current level.
+- The Treasure Hunter level (e.g. `TH4`) appears to the left of the icons.
+- Debuffs clear when they wear off, when the mob dies or despawns, and when Erase-type
+  abilities remove them; sleep, petrify and terror clear when the mob acts.
+
+The icons follow the target bar wherever you drag it. Use `size` and `offset` to fine-tune them.
+In `//eb setup`, sample icons are shown on the target bar.
+
+Learned durations and profiles are saved in `data/debuff_durations.xml` and
+`data/debuff_profiles.xml`. On first load these are imported from the Debuffing addon's
+`data/` folder if it's installed. Settings live under `debuffs` in `data/settings.xml`.
+
+If you used the standalone Debuffing addon, unload it (`//lua unload debuffing`) and remove it from
+`scripts/init.txt`.
 
 ## TargetInfo
 
@@ -293,6 +341,10 @@ enemybar2/
 ├── bars.lua              - UI rendering system  
 ├── limbus.lua            - Limbus chest tracker
 ├── targetinfo.lua        - Target ID / hex ID / speed
+├── debuffs.lua           - Debuff tracking and icons
+├── debuffs_bluemagic.lua - Blue magic data for debuff tracking
+├── icons/buffs/          - Status effect icons (<buff id>.png)
+├── licenses/             - Licenses of incorporated addons
 ├── settings.xml          - User configuration
 ├── gui_settings.lua      - Legacy compatibility
 ├── subtargetBar.lua      - Legacy compatibility  
@@ -306,7 +358,10 @@ enemybar2/
 
 ## Version History
 
-### v2.4 (Current)
+### v2.5 (Current)
+- Added debuff icons with timers on the target bar (tracking ported from the Debuffing addon)
+
+### v2.4
 - Added the TargetInfo module (based on Arcon's TargetInfo addon), with its own draggable position
 
 ### v2.3
@@ -332,6 +387,8 @@ enemybar2/
 **Enhanced Version**: Claude (AI Assistant)  
 **Limbus module**: Based on LimbusHelper by Kaius @ Bahamut and Linktri @ Asura  
 **TargetInfo module**: Based on TargetInfo by Arcon (Copyright © 2013-2017, Windower; BSD 3-clause license)  
+**Debuffs module**: Tracking from Debuffing (Xathe's Debuffed, Auk's Debuffing, Nsane's overhaul, maintained by Linktri; BSD 3-clause, see `licenses/Debuffing-LICENSE.txt`)  
+**Status icons**: From XivParty's assets, which credit KenshiDRK's partybuffs  
 **Framework**: Windower 4 for Final Fantasy XI
 
 ## License
@@ -344,4 +401,4 @@ For issues or feature requests, refer to the Windower community forums or FFXI a
 
 ---
 
-*EnemyBar Enhanced v2.4 - Bringing modern performance and features to classic FFXI enemy tracking.*
+*EnemyBar Enhanced v2.5 - Bringing modern performance and features to classic FFXI enemy tracking.*
