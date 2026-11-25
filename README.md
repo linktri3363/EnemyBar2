@@ -100,6 +100,7 @@ EnemyBar Enhanced provides comprehensive enemy tracking with HP prediction, smar
 | `show_dist` (`dist`), `show_action` (`action`), `show_target` (`target`), `show_target_icon` (`icon`), `show_debuff` (`debuff`), `show_prediction` (`prediction`), `show_kill_timer` (`killtimer`), `show_alerts` (`alerts`) | on/off/toggle | Optional parts of the bar |
 | `width`, `font_size` (`size`) | number | |
 | `x`, `y` | number | Screen position |
+| `prediction_x` | number | Death prediction position, in pixels from the bar's left edge (default: centered). Or drag it sideways in `//eb setup` |
 | `font` | font name | |
 | `color` | R G B [alpha] | 0-255 each, e.g. `//eb set color t 255 0 0` |
 | `count`, `stack_padding` (`padding`), `stack_dir` (`dir`) | number / up or down | Aggro bars only |

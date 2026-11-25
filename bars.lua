@@ -41,6 +41,8 @@ function bars.new(bar_settings)
             show_action = bar_settings.show_action or false,
             show_debuff = bar_settings.show_debuff or false,
             show_prediction = bar_settings.show_prediction or true,
+            -- Death prediction x position (pixels from the bar's left edge; nil = centered)
+            prediction_x = tonumber(bar_settings.prediction_x),
             show_kill_timer = bar_settings.show_kill_timer or false,
             show_alerts = bar_settings.show_alerts or true,
             
@@ -363,7 +365,10 @@ function bars.move(bar, x, y)
         if bar.target_status_image then bar.target_status_image:pos(x + bar.width + 4, y) end
         
         -- Position enhanced elements
-        if bar.prediction_text then bar.prediction_text:pos(x + math.floor(bar.width/2), y - math.floor(bar.font_size/2) - 2) end
+        if bar.prediction_text then
+            local px = bar.prediction_x and math.max(0, math.min(bar.width, bar.prediction_x)) or math.floor(bar.width/2)
+            bar.prediction_text:pos(x + px, y - math.floor(bar.font_size/2) - 2)
+        end
         if bar.threat_indicator_image then bar.threat_indicator_image:pos(x - 6, y) end
         if bar.kill_timer_text then bar.kill_timer_text:pos(x - 56, y - math.floor(bar.font_size) - 8) end
         if bar.chain_saver_indicator then bar.chain_saver_indicator:pos(x - 12, y) end
