@@ -1045,7 +1045,7 @@ local SETTABLE = {
     show = 'bool', show_target = 'bool', show_target_icon = 'bool', show_action = 'bool',
     show_dist = 'bool', show_debuff = 'bool', show_prediction = 'bool',
     show_kill_timer = 'bool', show_alerts = 'bool',
-    width = 'number', font_size = 'number', x = 'number', y = 'number',
+    width = 'number', font_size = 'number', x = 'number', y = 'number', prediction_x = 'number',
     font = 'string', color = 'color',
     count = 'aggro_number', stack_padding = 'aggro_number', stack_dir = 'aggro_dir',
 }
@@ -1098,7 +1098,8 @@ function EnemyBar:setSetting(bar, setting, value, args)
         end
     elseif kind == 'number' then
         parsed = tonumber(value)
-        if not parsed or (setting ~= 'x' and setting ~= 'y' and parsed <= 0) then
+        if not parsed or (setting ~= 'x' and setting ~= 'y' and setting ~= 'prediction_x' and parsed <= 0)
+        or (setting == 'prediction_x' and parsed < 0) then
             windower.add_to_chat(123, 'EnemyBar: "' .. setting .. '" needs a positive number')
             return
         end
@@ -1246,6 +1247,9 @@ windower.register_event('mouse', function(type, x, y, delta, blocked)
         if dragged then
             -- Anchor = whatever is being dragged: the first bar of a set, or the Limbus module
             local anchor = dragged.module or dragged.bars[1]
+            if dragged.prediction then
+                anchor = {x = dragged.bars[1].x + (dragged.bars[1].prediction_x or math.floor(dragged.bars[1].width/2)), y = 0}
+            end
             local d_x, d_y = 0, 0
             if drag_snap_key_down then
                 d_x = math.floor(((x - dragged.x) + anchor.x)/10)*10 - anchor.x
@@ -1255,7 +1259,14 @@ windower.register_event('mouse', function(type, x, y, delta, blocked)
                 d_y = y - dragged.y
             end
 
-            if dragged.module then
+            if dragged.prediction then
+                -- Death prediction: slides along its bar only (y is ignored)
+                for _, bar in ipairs(dragged.bars) do
+                    local px = bar.prediction_x or math.floor(bar.width/2)
+                    bar.prediction_x = math.max(0, math.min(bar.width, px + d_x))
+                    bars.move(bar, bar.x, bar.y)
+                end
+            elseif dragged.module then
                 dragged.module:move(dragged.module.x + d_x, dragged.module.y + d_y)
             else
                 for i, bar in ipairs(dragged.bars) do
@@ -1286,6 +1297,18 @@ windower.register_event('mouse', function(type, x, y, delta, blocked)
             end
         end
 
+        -- Death prediction text: grab it to slide it along its bar
+        local set_keys = {'target_bar', 'subtarget_bar', 'focustarget_bar', 'aggro_bar'}
+        for i, bar_set in ipairs(bar_sets) do
+            for _, bar in ipairs(bar_set) do
+                local pt = bar and bar.prediction_text
+                if pt and pt:visible() and pt:hover(x, y) then
+                    dragged = {bars = bar_set, prediction = set_keys[i], x = x, y = y}
+                    return true
+                end
+            end
+        end
+
         for _, bar_set in ipairs(bar_sets) do
             for _, bar in ipairs(bar_set) do
                 if bar and bars.hover(bar, x, y) then
@@ -1298,6 +1321,9 @@ windower.register_event('mouse', function(type, x, y, delta, blocked)
 
     elseif type == 2 then -- Mouse up
         if dragged then
+            if dragged.prediction then
+                settings[dragged.prediction].prediction_x = dragged.bars[1].prediction_x
+            end
             settings.target_bar.pos = {x=EnemyBar.bars.target.x, y=EnemyBar.bars.target.y}
             settings.subtarget_bar.pos = {x=EnemyBar.bars.subtarget.x, y=EnemyBar.bars.subtarget.y}
             settings.focustarget_bar.pos = {x=EnemyBar.bars.focustarget.x, y=EnemyBar.bars.focustarget.y}

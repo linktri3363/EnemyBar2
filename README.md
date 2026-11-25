@@ -100,6 +100,7 @@ EnemyBar Enhanced provides comprehensive enemy tracking with HP prediction, smar
 | `show_dist` (`dist`), `show_action` (`action`), `show_target` (`target`), `show_target_icon` (`icon`), `show_debuff` (`debuff`), `show_prediction` (`prediction`), `show_kill_timer` (`killtimer`), `show_alerts` (`alerts`) | on/off/toggle | Optional parts of the bar |
 | `width`, `font_size` (`size`) | number | |
 | `x`, `y` | number | Screen position |
+| `prediction_x` | number | Death prediction position, in pixels from the bar's left edge (default: centered). Or drag it sideways in `//eb setup` |
 | `font` | font name | |
 | `color` | R G B [alpha] | 0-255 each, e.g. `//eb set color t 255 0 0` |
 | `count`, `stack_padding` (`padding`), `stack_dir` (`dir`) | number / up or down | Aggro bars only |
@@ -177,6 +178,11 @@ status icons on the target bar:
 - The Treasure Hunter level (e.g. `TH4`) appears just past the end of the icon row.
 - Debuffs clear when they wear off, when the mob dies or despawns, and when Erase-type
   abilities remove them; sleep, petrify and terror clear when the mob acts.
+- If a debuff spell gets "No effect" on a mob EB2 isn't tracking that debuff on (the mob
+  already has it, e.g. after a reload or when someone outside the party applied it), the
+  debuff is shown with a `?` timer until it wears off, capped at the spell's full duration.
+- Tracked debuffs survive `//lua reload enemybar2`: they're saved on unload and restored on
+  load if you're still in the same zone (within 30 minutes), with their timers intact.
 
 The icons follow the target bar wherever you drag it. In `//eb setup`, sample icons appear on
 the target bar; drag them to slide the row along the bar (they only move sideways and stay

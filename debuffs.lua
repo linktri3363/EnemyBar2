@@ -324,7 +324,20 @@ local function inc_action(act)
                                   or (absorb_map[spell] and absorb_map[spell].duration)
                                   or 0
 
-                    if SUCCESS_STATUS:contains(tmsg) then
+                    if tmsg == 75 then
+                        -- "No effect": the mob already has this effect (or a stronger
+                        -- version). If we aren't tracking it (e.g. after a reload, or it
+                        -- was applied by someone outside the party), show it with an
+                        -- unknown remaining time, capped at the spell's full duration.
+                        if effect and effect > 0 and res.buffs[effect]
+                        and not (debuffed_mobs[tgt] and debuffed_mobs[tgt][effect]) then
+                            local name = (bm and bm.en) or (res.spells[spell] and res.spells[spell].en) or 'Unknown'
+                            debuffed_mobs[tgt] = debuffed_mobs[tgt] or {}
+                            debuffed_mobs[tgt][effect] = { id = act.param, name = name,
+                                timer = os.clock() + ((duration and duration > 0) and duration or 60),
+                                base_dur = 0, unknown = true, no_hint = true }
+                        end
+                    elseif SUCCESS_STATUS:contains(tmsg) then
                         local msg_effect = act.targets[i].actions[1].param
                         if T{225,226,227,228,229}:contains(spell) then spell = spell - 5 end
                         local conflict = (spell == 719 and debuffed_mobs[tgt] and debuffed_mobs[tgt][133])
@@ -547,7 +560,7 @@ local function expire_timers()
     for tid, tbl in pairs(debuffed_mobs) do
         for effect, sp in pairs(tbl) do
             if type(sp) == 'table' and (sp.timer or 0) < now then
-                if cfg().keep_buff_after_timer then
+                if cfg().keep_buff_after_timer and not sp.unknown then
                     if not sp.expired_at then sp.expired_at = sp.timer end
                 else
                     remove_debuff(tid, effect)
@@ -575,6 +588,71 @@ local function ensure_file(rel, legacy_rel)
     local legacy = read_file(windower.addon_path..'..\\Debuffing\\'..legacy_rel)
     files.new(rel, true):write(legacy or EMPTY_XML)
     if legacy then log('Imported '..legacy_rel..' from the Debuffing addon.') end
+end
+
+-- ---------------------------------------------------------------------------
+-- Keep tracked debuffs across an addon reload. Saved on unload and restored
+-- on the next load if we're still in the same zone, the save is recent, and
+-- the game wasn't restarted (os.clock keeps running across addon reloads).
+-- ---------------------------------------------------------------------------
+local STATE_FILE = windower.addon_path..'data/debuff_state.lua'
+
+local function serialize(v, depth)
+    local t = type(v)
+    if t == 'number' or t == 'boolean' then return tostring(v)
+    elseif t == 'string' then return string.format('%q', v)
+    elseif t == 'table' and (depth or 0) < 6 then
+        local parts = {}
+        for k, val in pairs(v) do
+            if type(val) ~= 'function' and type(k) ~= 'table' then
+                local key = type(k) == 'number' and ('['..k..']') or ('['..string.format('%q', tostring(k))..']')
+                parts[#parts+1] = key..'='..serialize(val, (depth or 0) + 1)
+            end
+        end
+        return '{'..table.concat(parts, ',')..'}'
+    end
+    return 'nil'
+end
+
+local function save_state()
+    local info = windower.ffxi.get_info()
+    if not info or not info.logged_in or not next(debuffed_mobs) then
+        os.remove(STATE_FILE); return
+    end
+    local self_id = player and player.id
+    local mobs = {}
+    for id, tbl in pairs(debuffed_mobs) do
+        if id ~= self_id then mobs[id] = tbl end  -- never keep //eb df test entries
+    end
+    local f = io.open(STATE_FILE, 'w'); if not f then return end
+    f:write('return '..serialize({zone = info.zone, time = os.time(), clock = os.clock(), seq = add_seq,
+        mobs = mobs, th = TH, steps = step_duration}))
+    f:close()
+end
+
+local function restore_state()
+    local f = io.open(STATE_FILE, 'r'); if not f then return end
+    local src = f:read('*a'); f:close()
+    os.remove(STATE_FILE)
+    local chunk = (loadstring or load)(src)
+    if not chunk then return end
+    local ok, data = pcall(chunk)
+    if not ok or type(data) ~= 'table' then return end
+    local info = windower.ffxi.get_info()
+    if not info or data.zone ~= info.zone then return end
+    if os.clock() < (data.clock or math.huge) or os.time() - (data.time or 0) > 1800 then return end
+    local restored = 0
+    for id, tbl in pairs(data.mobs or {}) do
+        local m = windower.ffxi.get_mob_by_id(id)
+        if m and m.hpp and m.hpp > 0 then
+            debuffed_mobs[id] = tbl
+            if data.th and data.th[id] then TH[id] = data.th[id] end
+            if data.steps and data.steps[id] then step_duration[id] = data.steps[id] end
+            restored = restored + 1
+        end
+    end
+    add_seq = math.max(add_seq, tonumber(data.seq) or 0)
+    if restored > 0 then log('Restored debuffs on '..restored..' mob'..(restored == 1 and '' or 's')..' after reload.') end
 end
 
 local function load_data()
@@ -676,7 +754,8 @@ function Debuffs:hideAll()
     if self.th then self.th:hide() end
 end
 
-local function fmt_timer(remain, expired_up)
+local function fmt_timer(remain, expired_up, unknown)
+    if unknown then return '?' end
     if expired_up then return cs(GREEN, '+'..math.floor(expired_up)) end
     local s = math.max(0, math.ceil(remain))
     local txt = s >= 1000 and (math.ceil(s / 60)..'m') or tostring(s)
@@ -695,7 +774,7 @@ function Debuffs:entriesFor(tid)
             local icon = icon_for(effect, sp)
             if icon then
                 out[#out+1] = {icon = icon, seq = sp.seq, remain = (sp.timer or 0) - now,
-                               up = sp.expired_at and (now - sp.expired_at) or nil}
+                               up = sp.expired_at and (now - sp.expired_at) or nil, unknown = sp.unknown}
             end
         end
     end
@@ -739,7 +818,7 @@ function Debuffs:draw(bar, entries, th_text)
             if img.last_path ~= path then img:path(path); img.last_path = path end
             img:pos(x, icon_y); img:show()
             if c.timers then
-                local label = fmt_timer(e.remain, e.up)
+                local label = fmt_timer(e.remain, e.up, e.unknown)
                 local plain = label:gsub('\\cs%(%d+,%d+,%d+%)', ''):gsub('\\cr', '')
                 txt:text(label)
                 txt:pos(math.floor(x + (size - #plain * char_w) / 2), timer_y)
@@ -1199,7 +1278,9 @@ windower.register_event('logout', 'zone change', function()
     player = windower.ffxi.get_player()
 end)
 
-windower.register_event('load', 'login', function() load_data() end)
+windower.register_event('load', function() load_data(); restore_state() end)
+windower.register_event('login', function() load_data() end)
+windower.register_event('unload', function() save_state() end)
 
 windower.register_event('job change', function()
     if cfg().auto_profiles_enabled then _apply_job_profile() end
@@ -1209,3 +1290,5 @@ end)
 Debuffs._state = function() return debuffed_mobs, TH end
 Debuffs._inc_action = inc_action
 Debuffs._inc_action_message = inc_action_message
+Debuffs._save_state = save_state
+Debuffs._restore_state = restore_state
