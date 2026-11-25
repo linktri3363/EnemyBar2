@@ -215,7 +215,9 @@ default, and is dragged separately in `//eb setup`. Settings live under `debuff_
 `data/settings.xml` (`pos`, `font`, `font_size`, `show`, `show_shots`).
 
 Learned durations and profiles are saved in `data/debuff_durations.xml` and
-`data/debuff_profiles.xml`. On first load these are imported from the Debuffing addon's
+`data/debuff_profiles.xml`. Learned values take effect immediately but are written to disk in
+batches (at most every 30 seconds, and right away on zone, logout, reload or any `//eb df`
+command), so busy fights don't cause a burst of file writes. On first load these are imported from the Debuffing addon's
 `data/` folder if it's installed. Settings live under `debuffs` in `data/settings.xml`.
 
 If you used the standalone Debuffing addon, unload it (`//lua unload debuffing`) and remove it from

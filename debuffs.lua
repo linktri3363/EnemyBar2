@@ -54,6 +54,19 @@ local add_seq = 0
 local function next_seq() add_seq = add_seq + 1; return add_seq end
 local durations, duration_profiles = {}, {}
 
+-- Learned data is saved in batches: changes are applied in memory at once and
+-- written to disk at most every SAVE_INTERVAL seconds, plus immediately on
+-- zone, logout, reload/unload, job-profile switch and any //eb df command.
+local SAVE_INTERVAL = 30
+local dirty = {}          -- config tables with unsaved changes
+local last_save = 0
+local function mark_dirty(t) if t then dirty[t] = true end end
+local function flush_saves()
+    for t in pairs(dirty) do config.save(t, 'all') end
+    dirty = {}
+    last_save = os.clock()
+end
+
 -- Spells Windower's resources give no status/duration for. Stun shows for
 -- its 5s base duration (override with //eb df {Stun} <secs>); its wear-off
 -- message clears it sooner if the mob recovers early.
@@ -116,6 +129,7 @@ local function _resolve_profile_key(name)
     return want
 end
 local function _apply_job_profile()
+    flush_saves()  -- write anything learned under the previous profile first
     if not cfg().auto_profiles_enabled then current_profile = nil; return end
     _ensure_profile_tables()
     local pname = _job_profile_name(); if not pname then return end
@@ -140,7 +154,7 @@ local function _sync_profile(spell_id, secs_or_nil)
     local store = duration_profiles[owner_key].profiles
     store[current_profile] = store[current_profile] or { spells = {} }
     store[current_profile].spells[tostring(spell_id)] = secs_or_nil
-    config.save(duration_profiles, 'all')
+    mark_dirty(duration_profiles)
 end
 
 local function base_name(s) local b=s:match('^([^%(]+)') or s; return (b:gsub('%s+$','')) end
@@ -241,7 +255,7 @@ record_sample = function(sid, secs)
     local window = math.max(1, math.floor(tonumber(cfg().learn_window) or 5))
     while #list > window do table.remove(list, 1) end
     store[tostring(sid)] = table.concat(list, ',')
-    config.save(file, 'all')
+    mark_dirty(file)
     return list
 end
 
@@ -305,7 +319,7 @@ local function remove_debuff(target, effect, opts)
                     durations[owner_key] = durations[owner_key] or {}
                     durations[owner_key].spells = durations[owner_key].spells or {}
                     durations[owner_key].spells[tostring(sid)] = avg
-                    config.save(durations, 'all')
+                    mark_dirty(durations)
                     _sync_profile(sid, avg)
                     log(('Auto-updated: %s %ds (avg of %d; measured %ds)'):format(clean, avg, #samples, total))
                 end
@@ -766,6 +780,7 @@ local function restore_state()
 end
 
 local function load_data()
+    flush_saves()
     if not windower.dir_exists(windower.addon_path..'data\\') then windower.create_dir(windower.addon_path..'data\\') end
     ensure_file(DUR_FILE, 'data\\durations.xml')
     ensure_file(PROF_FILE, 'data\\duration_profiles.xml')
@@ -1074,6 +1089,7 @@ Debuffs.demo_entries = DEMO
 -- Called from EB2's main update loop with the target bar
 function Debuffs:update(setup_mode, bar)
     local now = os.clock()
+    if next(dirty) and now - last_save >= SAVE_INTERVAL then flush_saves() end
     expire_timers()
     if now > purge_time + 5 then purge_time = now; purge_missing_mobs() end
 
@@ -1105,6 +1121,11 @@ end
 -- Commands: //eb df ... (also //eb debuffs, //eb debuffing)
 -- ---------------------------------------------------------------------------
 function Debuffs:handleCommand(args)
+    self:runCommand(args)
+    flush_saves()   -- commands always save right away (including pending learned data)
+end
+
+function Debuffs:runCommand(args)
     local commands = T(args)
     player = windower.ffxi.get_player()
     if not player then return end
@@ -1403,6 +1424,7 @@ windower.register_event('incoming chunk', function(id, data)
 end)
 
 windower.register_event('logout', 'zone change', function()
+    flush_saves()
     debuffed_mobs, TH, step_duration = {}, {}, {}
     simulation_mode = false
     player = windower.ffxi.get_player()
@@ -1410,7 +1432,7 @@ end)
 
 windower.register_event('load', function() load_data(); restore_state() end)
 windower.register_event('login', function() load_data() end)
-windower.register_event('unload', function() save_state() end)
+windower.register_event('unload', function() flush_saves(); save_state() end)
 
 windower.register_event('job change', function()
     if cfg().auto_profiles_enabled then _apply_job_profile() end
@@ -1421,4 +1443,5 @@ Debuffs._state = function() return debuffed_mobs, TH end
 Debuffs._inc_action = inc_action
 Debuffs._inc_action_message = inc_action_message
 Debuffs._save_state = save_state
+Debuffs._pending_saves = function() local n = 0; for _ in pairs(dirty) do n = n + 1 end; return n end
 Debuffs._restore_state = restore_state
