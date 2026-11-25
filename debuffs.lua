@@ -53,12 +53,13 @@ local add_seq = 0
 local function next_seq() add_seq = add_seq + 1; return add_seq end
 local durations, duration_profiles = {}, {}
 
--- Spells Windower's resources give no status/duration for. Stun's wear-off
--- message usually clears it first; 5s is the base duration.
+-- Spells Windower's resources give no status/duration for. Stun shows for
+-- its 5s base duration (override with //eb df {Stun} <secs>); its wear-off
+-- message clears it sooner if the mob recovers early.
 local debuffs_map = { [252] = {effect = 10, duration = 5} }
 
--- Area (-ga) enfeebles have no duration in resources: use the single-target spell's
-local GA_SINGLE = { [356]=58, [357]=56, [359]=59, [361]=254, [362]=258, [363]=253, [364]=259 }
+-- Sleepga / Sleepga II have no duration in resources: use Sleep / Sleep II's
+local GA_SINGLE = { [363]=253, [364]=259 }
 local function ga_duration(spell)
     local single = GA_SINGLE[spell]
     return single and res.spells[single] and res.spells[single].duration or nil
