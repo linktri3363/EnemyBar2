@@ -1365,7 +1365,7 @@ local defaults = {
     },
     tracking = {alliance=true, pets=true, outside=false},
     debuffs = {
-        show=true, icon_size=20, spacing=1, max_icons=10, anchor='left', x=0, offset_y=0,
+        show=true, icon_size=20, spacing=6, max_icons=10, anchor='left', x=0, offset_y=0,
         timers=true, timer_font='Grammara', timer_size=8, show_th=true,
         keep_buff_after_timer=false, auto_update_enabled=false, auto_profiles_enabled=false
     },

@@ -145,6 +145,7 @@ With auto profile switching on, changing jobs can overwrite these (`//eb profile
 //eb df th [on/off]                   - Treasure Hunter level next to the icons
 //eb df size <12-40>                  - Icon size (default 20)
 //eb df max <1-20>                    - Most icons shown (default 10)
+//eb df spacing <0-30>                - Gap between icons in pixels (default 6)
 //eb df anchor left|right             - Which end of the bar the icons start from (default left)
 //eb df x <pixels>                    - Distance from that end (or drag the icons in //eb setup)
 //eb df y <pixels>                    - Nudge the icons up (-) or down (+)
