@@ -1277,6 +1277,15 @@ windower.register_event('mouse', function(type, x, y, delta, blocked)
             EnemyBar.bars.aggro
         }
         
+        -- Modules first: the debuff icons sit on top of the target bar, so they
+        -- must win the click (they only slide sideways along the bar)
+        for _, module in ipairs({Debuffs, DebuffDetails, Limbus, TargetInfo}) do
+            if module:hover(x, y) then
+                dragged = {module = module, x = x, y = y}
+                return true
+            end
+        end
+
         for _, bar_set in ipairs(bar_sets) do
             for _, bar in ipairs(bar_set) do
                 if bar and bars.hover(bar, x, y) then
@@ -1286,13 +1295,6 @@ windower.register_event('mouse', function(type, x, y, delta, blocked)
             end
         end
 
-        -- Text modules (each moves on its own)
-        for _, module in ipairs({Limbus, TargetInfo}) do
-            if module:hover(x, y) then
-                dragged = {module = module, x = x, y = y}
-                return true
-            end
-        end
 
     elseif type == 2 then -- Mouse up
         if dragged then
@@ -1302,6 +1304,7 @@ windower.register_event('mouse', function(type, x, y, delta, blocked)
             settings.aggro_bar.pos = {x=EnemyBar.bars.aggro[1].x, y=EnemyBar.bars.aggro[1].y}
             settings.limbus_bar.pos = {x=Limbus.x, y=Limbus.y}
             settings.targetinfo_bar.pos = {x=TargetInfo.x, y=TargetInfo.y}
+            settings.debuff_details.pos = {x=DebuffDetails.x, y=DebuffDetails.y}
             settings:save()
             dragged = nil
             return true
@@ -1362,9 +1365,13 @@ local defaults = {
     },
     tracking = {alliance=true, pets=true, outside=false},
     debuffs = {
-        show=true, icon_size=20, spacing=1, max_icons=10, offset_x=-2, offset_y=0,
+        show=true, icon_size=20, spacing=1, max_icons=10, anchor='left', x=0, offset_y=0,
         timers=true, timer_font='Grammara', timer_size=8, show_th=true,
         keep_buff_after_timer=false, auto_update_enabled=false, auto_profiles_enabled=false
+    },
+    debuff_details = {
+        pos={x=1300,y=120}, font='Grammara', font_size=0,   -- 0 = match the target bar
+        show=true, show_shots=true
     },
     targetinfo_bar = {
         pos={x=1500,y=65},

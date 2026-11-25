@@ -27,7 +27,7 @@ local ICON_PATH  = windower.addon_path..'icons/buffs/'
 
 local DEFAULT_CFG = {
     show = true, icon_size = 20, spacing = 1, max_icons = 10,
-    offset_x = -2, offset_y = 0,
+    anchor = 'left', x = 0, offset_y = 0,
     timers = true, timer_font = 'Grammara', timer_size = 8,
     show_th = true,
     keep_buff_after_timer = false, auto_update_enabled = false, auto_profiles_enabled = false,
@@ -131,8 +131,62 @@ local function is_threnody_spell(id) local s=res.spells[id]; return s and s.en a
 local function is_enemy(id) if not id then return false end local m=windower.ffxi.get_mob_by_id(id) return m and m.is_npc and (m.spawn_type==16 or m.claim_id~=0) end
 
 local function is_helix_id(id) local s = res.spells[id]; return s and s.en and s.en:lower():find('helix') end
-local function kaustra_store_dmg() end  -- damage labels aren't shown on icons
-local function helix_store_dmg() end
+
+-- Damage labels (shown in the details panel)
+local function dmg_label(n)
+    return (n >= 1000) and ((math.floor(n/1000) == n/1000) and string.format('%.0fk', n/1000) or string.format('%.1fk', n/1000)) or tostring(n)
+end
+local function kaustra_store_dmg(tgt, effect_id, raw_param)
+    local n = math.floor((tonumber(raw_param) or 0) / 4 / 100 + 0.5) * 100
+    if debuffed_mobs[tgt] and debuffed_mobs[tgt][effect_id] then
+        debuffed_mobs[tgt][effect_id].kaustra = true
+        debuffed_mobs[tgt][effect_id].dmg_str = dmg_label(n)
+    end
+end
+local function helix_store_dmg(tgt, effect_id, raw_param, spell_id)
+    local dmg = tonumber(raw_param) or 0
+    if dmg <= 0 then return end
+    local n = math.floor(math.min(dmg, 10000) / 100 + 0.5) * 100
+    if debuffed_mobs[tgt] and debuffed_mobs[tgt][effect_id] then
+        debuffed_mobs[tgt][effect_id].helix = true
+        debuffed_mobs[tgt][effect_id].dmg_str = dmg_label(n)
+        debuffed_mobs[tgt][effect_id].element = res.spells[spell_id] and res.spells[spell_id].element
+    end
+end
+
+-- Elemental shots (COR): recorded on the debuff they enhance
+local SHOT_INFO = {
+    [125] = {name = 'Fire Shot',    element = 0}, [126] = {name = 'Ice Shot',   element = 1},
+    [127] = {name = 'Wind Shot',    element = 2}, [128] = {name = 'Earth Shot', element = 3},
+    [129] = {name = 'Thunder Shot', element = 4}, [130] = {name = 'Water Shot', element = 5},
+    [131] = {name = 'Light Shot',   element = 6}, [132] = {name = 'Dark Shot',  element = 7},
+}
+local function add_shot(entry, shot, stackable)
+    if not entry then return end
+    if entry.shot and not stackable then return end
+    entry.shot = (entry.shot or 0) + 1
+    entry.shot_id = shot
+end
+local function handle_shot(target, shot)
+    local m = debuffed_mobs[target]; if not m then return end
+    if shot == 125 then add_shot(m[128], shot, true)
+    elseif shot == 126 then
+        if m[4] and T{58,80}:contains(m[4].id) then add_shot(m[4], shot) end
+        add_shot(m[129], shot, true)
+    elseif shot == 127 then add_shot(m[130], shot, true)
+    elseif shot == 128 then
+        if m[13] and T{56,344,345}:contains(m[13].id) then add_shot(m[13], shot) end
+        add_shot(m[131], shot, true)
+    elseif shot == 129 then add_shot(m[132], shot, true)
+    elseif shot == 130 then
+        if m[3] and T{220,221}:contains(m[3].id) then add_shot(m[3], shot) end
+        add_shot(m[133], shot, true)
+    elseif shot == 131 then add_shot(m[134], shot)
+    elseif shot == 132 then
+        if m[5] and T{254,276,347,348}:contains(m[5].id) then add_shot(m[5], shot) end
+        add_shot(m[135], shot)
+    end
+end
 
 local function remove_debuff(target, effect, opts)
     opts = opts or {}
@@ -286,6 +340,7 @@ local function inc_action(act)
                                 apply_debuff(tgt, debuffs_map[spell].effect, act.param, duration)
                             elseif EXTREMES[spell] then
                                 apply_debuff(tgt, EXTREMES[spell].effect, act.param, duration)
+                                if spell == 502 then kaustra_store_dmg(tgt, EXTREMES[spell].effect, act.targets[i].actions[1].param) end
                             elseif absorb_map[spell] then
                                 local e = absorb_map[spell].effect
                                 if type(e) == 'table' then for _,v in pairs(e) do apply_debuff(tgt, v, spell, duration) end
@@ -301,10 +356,12 @@ local function inc_action(act)
                         else
                             if effect then
                                 apply_debuff(tgt, effect, act.param, duration)
+                                if is_helix_id(act.param) then helix_store_dmg(tgt, effect, act.targets[i].actions[1].param, act.param) end
                             elseif debuffs_map[spell] then
                                 apply_debuff(tgt, debuffs_map[spell].effect, spell, duration)
                             elseif EXTREMES[spell] then
                                 apply_debuff(tgt, EXTREMES[spell].effect, act.param, duration)
+                                if spell == 502 then kaustra_store_dmg(tgt, EXTREMES[spell].effect, act.targets[i].actions[1].param) end
                             elseif absorb_map[spell] then
                                 local e = absorb_map[spell].effect
                                 if type(e) == 'table' then for _,v in pairs(e) do apply_debuff(tgt, v, spell, duration) end
@@ -316,9 +373,16 @@ local function inc_action(act)
                         local e = map[spell].effect
                         if type(e) == 'table' then for _,v in pairs(e) do apply_debuff(tgt, v, spell, duration) end
                         else apply_debuff(tgt, e, spell, duration) end
+                        if spell == 502 and EXTREMES[spell] then kaustra_store_dmg(tgt, EXTREMES[spell].effect, act.targets[i].actions[1].param) end
                     end
                 end
             end
+        end
+
+    elseif act.category == 6 then
+        if not is_ally(act.actor_id) then return end
+        if SHOT_INFO[act.param] and act.targets[1].actions[1].message ~= 323 then
+            local tgt = act.targets[1].id; if is_enemy(tgt) then handle_shot(tgt, act.param) end
         end
 
     elseif act.category == 13 then
@@ -536,9 +600,28 @@ local function load_data()
 end
 
 -- ---------------------------------------------------------------------------
--- Display: icons on the target bar
+-- Display: icons on the target bar + details panel
 -- ---------------------------------------------------------------------------
-Debuffs = { icons = nil, timers = nil, th = nil, built_for = nil }
+Debuffs = { icons = nil, timers = nil, th = nil, built_for = nil, details = nil,
+            details_built_for = nil, bar = nil, x = 0, y = 0, dx = 0, dy = 0 }
+
+-- The details panel is a second draggable module (like TargetInfo)
+DebuffDetails = { x = 0, y = 0 }
+
+local STROKE = {width = 2, alpha = 180, red = 50, green = 50, blue = 50}
+
+local DETAILS_DEFAULT = {pos = {x = 1300, y = 120}, font = 'Grammara', font_size = 0, show = true, show_shots = true}
+local function dcfg()
+    if settings and not settings.debuff_details then settings.debuff_details = DETAILS_DEFAULT end
+    return settings and settings.debuff_details or DETAILS_DEFAULT
+end
+
+local ELEMENT_RGB = { [0]={255,22,12},[1]={0,255,255},[2]={51,255,20},[3]={255,255,28},
+                      [4]={233,0,255},[5]={0,150,255},[6]={255,255,255},[7]={135,135,135} }
+local GREEN, DARK, LABEL = {51,255,20}, {135,135,135}, {200,220,255}
+local JA_ELEMENT = { [496]=0, [497]=1, [498]=2, [499]=3, [500]=4, [501]=5 }
+local JA_NAME = { [496]='Fire', [497]='Ice', [498]='Wind', [499]='Earth', [500]='Lightning', [501]='Water' }
+local function cs(rgb, s) return ('\\cs(%d,%d,%d)%s\\cr'):format(rgb[1], rgb[2], rgb[3], s) end
 
 local function icon_for(effect, sp)
     local base = STEP_ICON_BASE[effect]
@@ -547,7 +630,15 @@ local function icon_for(effect, sp)
         return base + tier - 1
     end
     if type(effect) == 'number' and effect >= 0 and effect <= 639 then return effect end
-    return nil  -- e.g. JA-style elemental damage entries have no status icon
+    return nil  -- JA-style elemental damage entries have no icon (details panel shows them)
+end
+
+local function new_text(size, font)
+    return texts.new('', {
+        pos = {x = 0, y = 0},
+        text = {size = size, font = font, stroke = STROKE},
+        flags = {bold = true, draggable = false}, bg = {visible = false},
+    })
 end
 
 function Debuffs:destroyDisplay()
@@ -563,7 +654,6 @@ function Debuffs:buildDisplay()
     local c = cfg()
     local size = c.icon_size
     self.icons, self.timers = {}, {}
-    local stroke = {width = 2, alpha = 180, red = 50, green = 50, blue = 50}
     for i = 1, c.max_icons do
         self.icons[i] = images.new({
             pos = {x = 0, y = 0}, visible = false,
@@ -573,17 +663,9 @@ function Debuffs:buildDisplay()
             repeatable = {x = 1, y = 1}, draggable = false,
         })
         self.icons[i].last_path = nil
-        self.timers[i] = texts.new('', {
-            pos = {x = 0, y = 0},
-            text = {size = c.timer_size, font = c.timer_font, stroke = stroke},
-            flags = {bold = true, draggable = false}, bg = {visible = false},
-        })
+        self.timers[i] = new_text(c.timer_size, c.timer_font)
     end
-    self.th = texts.new('', {
-        pos = {x = 0, y = 0},
-        text = {size = c.timer_size, font = c.timer_font, stroke = stroke},
-        flags = {bold = true, draggable = false}, bg = {visible = false},
-    })
+    self.th = new_text(c.timer_size, c.timer_font)
     self.built_for = table.concat({size, c.max_icons, c.timer_size, c.timer_font}, '|')
 end
 
@@ -595,10 +677,10 @@ function Debuffs:hideAll()
 end
 
 local function fmt_timer(remain, expired_up)
-    if expired_up then return '\\cs(51,255,20)+'..math.floor(expired_up)..'\\cr' end
+    if expired_up then return cs(GREEN, '+'..math.floor(expired_up)) end
     local s = math.max(0, math.ceil(remain))
     local txt = s >= 1000 and (math.ceil(s / 60)..'m') or tostring(s)
-    if s <= 10 then return '\\cs(255,180,80)'..txt..'\\cr' end
+    if s <= 10 then return cs({255,180,80}, txt) end
     return txt
 end
 
@@ -621,27 +703,38 @@ function Debuffs:entriesFor(tid)
     return out
 end
 
-local DEMO = {
-    {icon = 134, remain = 152}, {icon = 13, remain = 61}, {icon = 4, remain = 8}, {icon = 2, remain = 0, up = 5},
-}
+-- Screen x of the anchor point for the current bar
+function Debuffs:anchorX(bar)
+    local c = cfg()
+    if c.anchor == 'right' then return bar.x + 1 + bar.width - c.x end
+    return bar.x + 1 + c.x
+end
 
 function Debuffs:draw(bar, entries, th_text)
     local c = cfg()
     local size, gap = c.icon_size, c.spacing
     local n = math.min(#entries, c.max_icons)
-    local right = bar.x + 1 + bar.width + c.offset_x
+    local left_anchor = c.anchor ~= 'right'
+    local ax = self:anchorX(bar)
     local icon_y = bar.y + BAR_HEIGHT - size + c.offset_y
     local timer_y = bar.y + BAR_HEIGHT + 1 + c.offset_y
     local char_w = c.timer_size * 0.65
-    local leftmost = right
+    self.x, self.y = ax, icon_y
+    local far_edge = ax
 
-    -- Newest at the right edge; older ones step left
+    -- Newest at the anchor; older ones step away from it
     for slot = 1, c.max_icons do
         local img, txt = self.icons[slot], self.timers[slot]
         if slot <= n then
             local e = entries[#entries - slot + 1]
-            local x = math.floor(right - slot * size - (slot - 1) * gap)
-            leftmost = x
+            local x
+            if left_anchor then
+                x = math.floor(ax + (slot - 1) * (size + gap))
+                far_edge = x + size
+            else
+                x = math.floor(ax - slot * size - (slot - 1) * gap)
+                far_edge = x
+            end
             local path = ICON_PATH..e.icon..'.png'
             if img.last_path ~= path then img:path(path); img.last_path = path end
             img:pos(x, icon_y); img:show()
@@ -659,14 +752,135 @@ function Debuffs:draw(bar, entries, th_text)
         end
     end
 
+    -- TH sits just past the far end of the icon row
     if c.show_th and th_text then
+        local w = #th_text * char_w
+        local tx = left_anchor and (far_edge + 4) or (far_edge - w - 4)
+        if n == 0 then tx = left_anchor and ax or (ax - w) end
         self.th:text(th_text)
-        self.th:pos(math.floor(leftmost - (#th_text * char_w) - 4), icon_y + math.floor((size - c.timer_size) / 2) - 2)
+        self.th:pos(math.floor(tx), icon_y + math.floor((size - c.timer_size) / 2) - 2)
         self.th:show()
     else
         self.th:hide()
     end
 end
+
+-- ---- details panel ---------------------------------------------------------
+function DebuffDetails:destroy()
+    if self.text then self.text:destroy() end
+    self.text, self.built_for = nil, nil
+end
+
+function DebuffDetails:build()
+    self:destroy()
+    local d = dcfg()
+    local size = d.font_size
+    if not size or size <= 0 then
+        size = settings and settings.target_bar and settings.target_bar.font_size or 12
+    end
+    self.x, self.y = d.pos.x or 0, d.pos.y or 0
+    self.text = new_text(size, d.font)
+    self.built_for = size..'|'..d.font
+end
+
+local function remain_suffix(sp, unit_secs, unit_name, unit_rgb)
+    local now = os.clock()
+    if sp.expired_at then
+        local up = now - sp.expired_at
+        if unit_secs then return ' · '..cs(GREEN, '+'..math.floor(up / unit_secs))..' '..cs(unit_rgb, unit_name) end
+        return ' · '..cs(GREEN, '+'..math.floor(up))..'s'
+    end
+    local remain = math.max(0, (sp.timer or 0) - now)
+    if unit_secs then return ' · '..math.floor(remain / unit_secs)..' '..cs(unit_rgb, unit_name) end
+    return ' · '..math.ceil(remain)..'s'
+end
+
+-- Special entries only: Helix, Kaustra, elemental damage bonuses, shots
+function DebuffDetails:linesFor(tid)
+    local tbl, rows = debuffed_mobs[tid], {}
+    if not tbl then return {} end
+    local d = dcfg()
+    for effect, sp in pairs(tbl) do
+        if type(sp) == 'table' then
+            sp.seq = sp.seq or next_seq()
+            local line
+            if sp.helix and sp.dmg_str then
+                local rgb = ELEMENT_RGB[sp.element] or ELEMENT_RGB[6]
+                line = cs(rgb, base_name(sp.name))..' '..cs(rgb, sp.dmg_str)..remain_suffix(sp, 10, 'tocks', rgb)
+            elseif sp.kaustra and sp.dmg_str then
+                line = cs(DARK, 'Kaustra')..' '..cs(DARK, sp.dmg_str)..remain_suffix(sp, 3, 'ticks', DARK)
+            elseif effect == 1000 and JA_SPELLS:contains(sp.name) then
+                local el = JA_ELEMENT[sp.name]
+                local pct = math.max(1, math.min(5, tonumber(sp.tier) or 1)) * 5
+                line = cs(ELEMENT_RGB[el], JA_NAME[sp.name]..' Damage')..' +'..pct..'%'..remain_suffix(sp)
+            elseif sp.shot and d.show_shots then
+                local info = SHOT_INFO[sp.shot_id]
+                local rgb = info and ELEMENT_RGB[info.element] or ELEMENT_RGB[6]
+                local count = sp.shot > 1 and (' x'..sp.shot) or ''
+                line = cs(LABEL, base_name(sp.name)..':')..' '..cs(rgb, (info and info.name or 'Shot')..count)
+            end
+            if line then rows[#rows+1] = {seq = sp.seq, line = line} end
+        end
+    end
+    table.sort(rows, function(a, b) return a.seq < b.seq end)
+    local out = {}
+    for i, r in ipairs(rows) do out[i] = r.line end
+    return out
+end
+
+local DETAILS_DEMO = {
+    cs(ELEMENT_RGB[4], 'Ionohelix II')..' '..cs(ELEMENT_RGB[4], '3.2k')..' · 4 '..cs(ELEMENT_RGB[4], 'tocks'),
+    cs(DARK, 'Kaustra')..' '..cs(DARK, '1.5k')..' · 12 '..cs(DARK, 'ticks'),
+    cs(ELEMENT_RGB[0], 'Fire Damage')..' +15% · 42s',
+    cs(LABEL, 'Burn:')..' '..cs(ELEMENT_RGB[0], 'Fire Shot x2'),
+}
+
+function DebuffDetails:update(setup_mode, tid)
+    local d = dcfg()
+    local size = d.font_size
+    if not size or size <= 0 then size = settings and settings.target_bar and settings.target_bar.font_size or 12 end
+    if self.built_for ~= size..'|'..d.font then self:build() end
+    if not d.show then self.text:hide(); return end
+    local lines = setup_mode and DETAILS_DEMO or (tid and self:linesFor(tid) or {})
+    if #lines == 0 then self.text:hide(); return end
+    self.text:text(table.concat(lines, '\n'))
+    self.text:pos(self.x, self.y)
+    self.text:show()
+end
+
+function DebuffDetails:hover(x, y)
+    return self.text ~= nil and self.text:visible() and self.text:hover(x, y) or false
+end
+
+function DebuffDetails:move(x, y)
+    self.x, self.y = x, y
+    dcfg().pos = {x = x, y = y}
+    if self.text then self.text:pos(x, y) end
+end
+
+-- ---- dragging the icon row (setup mode): sideways only, clamped to the bar ----
+function Debuffs:hover(x, y)
+    if not self.icons then return false end
+    for _, img in ipairs(self.icons) do
+        if img:visible() and img:hover(x, y) then return true end
+    end
+    return false
+end
+
+function Debuffs:move(x, y)
+    local bar = self.bar
+    if not bar then return end
+    local c = cfg()
+    local offset = (c.anchor == 'right') and (bar.x + 1 + bar.width - x) or (x - bar.x - 1)
+    c.x = math.max(0, math.min(bar.width, math.floor(offset)))
+    self.x = self:anchorX(bar)  -- y never changes
+    self:draw(bar, self.demo_entries, 'TH4')
+end
+
+local DEMO = {
+    {icon = 2, remain = 0, up = 5}, {icon = 4, remain = 8}, {icon = 13, remain = 61}, {icon = 134, remain = 152},
+}
+Debuffs.demo_entries = DEMO
 
 -- Called from EB2's main update loop with the target bar
 function Debuffs:update(setup_mode, bar)
@@ -675,23 +889,25 @@ function Debuffs:update(setup_mode, bar)
     if now > purge_time + 5 then purge_time = now; purge_missing_mobs() end
 
     local c = cfg()
+    if c.anchor == nil then c.anchor = 'left' end
+    if c.x == nil then c.x = 0 end
     local key = table.concat({c.icon_size, c.max_icons, c.timer_size, c.timer_font}, '|')
     if self.built_for ~= key then self:buildDisplay() end
-
-    if not c.show or not bar or not bar.is_visible then self:hideAll(); return end
-
-    if setup_mode then
-        self:draw(bar, DEMO, 'TH4')
-        return
-    end
+    self.bar = bar
 
     local tid
-    if simulation_mode and player then
-        tid = player.id
-    else
-        local t = windower.ffxi.get_mob_by_target('t')
-        tid = t and t.id
+    if not setup_mode then
+        if simulation_mode and player then
+            tid = player.id
+        else
+            local t = windower.ffxi.get_mob_by_target('t')
+            tid = t and t.id
+        end
     end
+    DebuffDetails:update(setup_mode, tid)
+
+    if not c.show or not bar or not bar.is_visible then self:hideAll(); return end
+    if setup_mode then self:draw(bar, DEMO, 'TH4'); return end
     if not tid then self:hideAll(); return end
     self:draw(bar, self:entriesFor(tid), TH[tid])
 end
@@ -759,14 +975,18 @@ function Debuffs:handleCommand(args)
             '  timer [on|off]               - timers under the icons',
             '  th [on|off]                  - Treasure Hunter level next to the icons',
             '  size <12-40> | max <1-20>    - icon size / most icons shown',
-            '  offset <x> <y>               - nudge the icons (pixels)',
+            '  anchor left|right            - which end of the bar the icons start from',
+            '  x <pixels>                   - distance from that end (or drag them in //eb setup)',
+            '  y <pixels>                   - nudge the icons up (-) or down (+)',
+            '  details [on|off]             - Helix/Kaustra damage, elemental damage, shots panel',
+            '  shots [on|off]               - include elemental shots in the details panel',
             '  keep_buff [on|off]           - keep expired debuffs with a +seconds counter',
             '  auto [on|off]                - auto-learn durations (also toggles keep_buff)',
             '  auto_profiles [on|off]       - per-main-job duration profiles',
             '  {Spell Name}|ID <secs|remove> - set/remove a duration override',
             '  save|load|delete <name>, list - duration profiles',
             '  reset                        - remove all overrides (profiles untouched)',
-            '  test {Spell}|ID [remove], test clear - simulate on yourself',
+            '  test {Spell}|ID [damage] [remove], test clear - simulate on yourself',
             '  clear                        - wipe all tracked debuffs',
         }
         for _, l in ipairs(lines) do windower.add_to_chat(207, l) end
@@ -793,10 +1013,32 @@ function Debuffs:handleCommand(args)
     elseif cmd == 'max' then
         set_number('max_icons', commands[2], 1, 20, 'Max icons')
 
-    elseif cmd == 'offset' then
-        local x, y = tonumber(commands[2]), tonumber(commands[3])
-        if not x or not y then log('Usage: //eb df offset <x> <y>'); return end
-        c.offset_x, c.offset_y = x, y; save_cfg(); log(('Offset = %d, %d'):format(x, y))
+    elseif cmd == 'anchor' then
+        local a = tostring(commands[2] or ''):lower()
+        if a ~= 'left' and a ~= 'right' then log('Usage: //eb df anchor left|right'); return end
+        c.anchor = a; save_cfg(); log('Icons anchored '..a..' (newest at the '..a..' end).')
+
+    elseif cmd == 'x' then
+        local n = tonumber(commands[2])
+        if not n or n < 0 then log('Usage: //eb df x <pixels from the anchored end>'); return end
+        c.x = math.floor(n); save_cfg(); log('Icon position: '..c.x..'px from the '..(c.anchor or 'left')..' end.')
+
+    elseif cmd == 'y' then
+        local n = tonumber(commands[2])
+        if not n then log('Usage: //eb df y <pixels>'); return end
+        c.offset_y = math.floor(n); save_cfg(); log('Icon vertical nudge: '..c.offset_y)
+
+    elseif cmd == 'details' then
+        local d = dcfg()
+        local v = tostring(commands[2] or ''):lower()
+        if v == 'on' then d.show = true elseif v == 'off' then d.show = false else d.show = not d.show end
+        save_cfg(); log('Details panel: '..(d.show and 'ON' or 'OFF'))
+
+    elseif cmd == 'shots' then
+        local d = dcfg()
+        local v = tostring(commands[2] or ''):lower()
+        if v == 'on' then d.show_shots = true elseif v == 'off' then d.show_shots = false else d.show_shots = not d.show_shots end
+        save_cfg(); log('Shots in details panel: '..(d.show_shots and 'ON' or 'OFF'))
 
     elseif cmd == 'keep_buff' then
         set_toggle('keep_buff_after_timer', commands[2], 'Keep buff after timer')
@@ -860,6 +1102,9 @@ function Debuffs:handleCommand(args)
         if #commands < 2 then log('Usage: //eb df test {Spell}|ID [remove]'); return end
         local last_is_remove = tostring(commands[#commands]):lower() == 'remove'
         local name_end = last_is_remove and (#commands - 1) or #commands
+        -- A trailing number after a spell name is damage (Helix / Kaustra)
+        local dmg_val
+        if name_end > 2 and tonumber(commands[name_end]) then dmg_val = tonumber(commands[name_end]); name_end = name_end - 1 end
         local raw_query = table.concat(commands, ' ', 2, name_end)
         local sid, sname
         local idq = tonumber(_auto(_unwrap_token(raw_query)))
@@ -883,10 +1128,19 @@ function Debuffs:handleCommand(args)
                        or 60
         if duration == 0 then duration = 60 end
         local s = res.spells[sid]
+        if JA_SPELLS:contains(sid) then
+            apply_ja_spells(self_id, sid)
+            debuffed_mobs[self_id][1000].no_hint = true
+            log('Test: '..sname..' (details panel)'); return
+        end
         local effect = (bm and bm.status) or (s and s.status) or (EXTREMES[sid] and EXTREMES[sid].effect) or (absorb_map[sid] and absorb_map[sid].effect)
         if not effect or effect == 0 then log(sname..' has no status effect to show.'); return end
         apply_debuff(self_id, effect, sid, duration)
         if debuffed_mobs[self_id][effect] then debuffed_mobs[self_id][effect].no_hint = true end
+        if dmg_val then
+            if is_helix_id(sid) then helix_store_dmg(self_id, effect, dmg_val, sid)
+            elseif sid == 502 then kaustra_store_dmg(self_id, effect, dmg_val) end
+        end
         log(('Test: %s for %ds (shown on the target bar)'):format(sname, duration))
 
     elseif cmd == 'clear' then

@@ -145,14 +145,18 @@ With auto profile switching on, changing jobs can overwrite these (`//eb profile
 //eb df th [on/off]                   - Treasure Hunter level next to the icons
 //eb df size <12-40>                  - Icon size (default 20)
 //eb df max <1-20>                    - Most icons shown (default 10)
-//eb df offset <x> <y>                - Nudge the icons in pixels
+//eb df anchor left|right             - Which end of the bar the icons start from (default left)
+//eb df x <pixels>                    - Distance from that end (or drag the icons in //eb setup)
+//eb df y <pixels>                    - Nudge the icons up (-) or down (+)
+//eb df details [on/off]              - Details panel (Helix, Kaustra, elemental damage, shots)
+//eb df shots [on/off]                - Include elemental shots in the details panel
 //eb df keep_buff [on/off]            - Keep expired debuffs with a +seconds counter
 //eb df auto [on/off]                 - Auto-learn real durations (also turns keep_buff on/off)
 //eb df auto_profiles [on/off]        - Per-main-job duration profiles
 //eb df {Spell Name}|ID <secs|remove> - Set or remove a duration override
 //eb df save|load|delete <name>, list - Duration profiles
 //eb df reset                         - Remove all duration overrides
-//eb df test {Spell}|ID [remove]      - Simulate a debuff (shown on the target bar)
+//eb df test {Spell}|ID [damage] [remove] - Simulate a debuff (damage for Helix/Kaustra)
 //eb df test clear                    - Remove simulated debuffs
 //eb df clear                         - Wipe all tracked debuffs
 ```
@@ -163,17 +167,31 @@ Tracks the debuffs your party and pets land on enemies (spells, blue magic, abso
 blood pacts, Angon/Tomahawk-type abilities) and shows the ones on your current target as
 status icons on the target bar:
 
-- The newest debuff sits at the bar's right edge; as more land, older ones shift left.
+- The icons start from an anchor point on the bar. With the default left anchor, the newest
+  debuff sits at the anchor and older ones shift right (`anchor right` mirrors this).
 - A timer under each icon counts down in seconds and turns orange in the last 10 seconds.
   With `keep_buff` on, an expired debuff stays with a green `+seconds` overtime counter until
   the game says it wore off, which is how real durations are learned.
 - Step debuffs show the daze icon for their current level.
-- The Treasure Hunter level (e.g. `TH4`) appears to the left of the icons.
+- The Treasure Hunter level (e.g. `TH4`) appears just past the end of the icon row.
 - Debuffs clear when they wear off, when the mob dies or despawns, and when Erase-type
   abilities remove them; sleep, petrify and terror clear when the mob acts.
 
-The icons follow the target bar wherever you drag it. Use `size` and `offset` to fine-tune them.
-In `//eb setup`, sample icons are shown on the target bar.
+The icons follow the target bar wherever you drag it. In `//eb setup`, sample icons appear on
+the target bar; drag them to slide the row along the bar (they only move sideways and stay
+within the bar). `x`, `y` and `size` fine-tune them.
+
+### Details panel
+Things an icon can't show appear in a separate text panel, hidden whenever there's nothing to show:
+
+- **Helix**: damage and remaining tocks, in the element's color (e.g. `Ionohelix II 3.2k · 4 tocks`)
+- **Kaustra**: damage and remaining ticks
+- **Elemental damage bonuses**: e.g. `Fire Damage +15% · 42s`, climbing as it stacks
+- **Elemental shots**: which shot enhanced which debuff (e.g. `Burn: Fire Shot x2`)
+
+It uses the same outlined text as the other modules, matches the target bar's font size by
+default, and is dragged separately in `//eb setup`. Settings live under `debuff_details` in
+`data/settings.xml` (`pos`, `font`, `font_size`, `show`, `show_shots`).
 
 Learned durations and profiles are saved in `data/debuff_durations.xml` and
 `data/debuff_profiles.xml`. On first load these are imported from the Debuffing addon's
@@ -360,6 +378,8 @@ enemybar2/
 
 ### v2.5 (Current)
 - Added debuff icons with timers on the target bar (tracking ported from the Debuffing addon)
+- Icons anchor to either end of the bar and slide sideways in setup mode
+- Details panel for Helix/Kaustra damage, elemental damage bonuses and elemental shots
 
 ### v2.4
 - Added the TargetInfo module (based on Arcon's TargetInfo addon), with its own draggable position
