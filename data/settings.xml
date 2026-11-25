@@ -52,6 +52,17 @@
             <show_target_icon>true</show_target_icon>
             <width>250</width>
         </focustarget_bar>
+        <limbus_bar>
+            <font>Grammara</font>
+            <font_size>10</font_size>
+            <pos>
+                <x>150</x>
+                <y>500</y>
+            </pos>
+            <row_spacing>16</row_spacing>
+            <show>true</show>
+            <show_anywhere>false</show_anywhere>
+        </limbus_bar>
         <profile_settings>
             <auto_switch>true</auto_switch>
             <current_profile>auto</current_profile>
@@ -137,6 +148,7 @@
             </color>
             <pos>
                 <x>530</x>
+                <y>70</y>
             </pos>
             <show_action>false</show_action>
             <show_dist>false</show_dist>
@@ -158,6 +170,12 @@
                 <y>210</y>
             </pos>
         </focustarget_bar>
+        <limbus_bar>
+            <pos>
+                <x>519.95668029785</x>
+                <y>51.818771362305</y>
+            </pos>
+        </limbus_bar>
         <subtarget_bar>
             <pos>
                 <x>920</x>
