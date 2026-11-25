@@ -50,6 +50,7 @@
             <show>true</show>
             <show_th>true</show_th>
             <spacing>6</spacing>
+            <th_x>799</th_x>
             <timer_font>Grammara</timer_font>
             <timer_size>8</timer_size>
             <timers>true</timers>
@@ -214,6 +215,7 @@
                 <x>530</x>
                 <y>70</y>
             </pos>
+            <prediction_x>574.54803466797</prediction_x>
             <show_action>false</show_action>
             <show_dist>false</show_dist>
             <show_kill_timer>true</show_kill_timer>
@@ -230,7 +232,7 @@
     <linktri>
         <aggro_bar>
             <pos>
-                <x>690</x>
+                <x>710</x>
                 <y>100</y>
             </pos>
         </aggro_bar>
@@ -244,11 +246,12 @@
             <auto_update_enabled>true</auto_update_enabled>
             <keep_buff_after_timer>true</keep_buff_after_timer>
             <spacing>15</spacing>
-            <x>225</x>
+            <th_x>0</th_x>
+            <x>240</x>
         </debuffs>
         <focustarget_bar>
             <pos>
-                <x>960</x>
+                <x>970</x>
                 <y>220</y>
             </pos>
         </focustarget_bar>
@@ -272,7 +275,7 @@
                 <blue>100</blue>
             </color>
             <pos>
-                <x>700</x>
+                <x>690</x>
                 <y>70</y>
             </pos>
             <prediction_x>574.54803466797</prediction_x>
@@ -281,7 +284,7 @@
         </target_bar>
         <targetinfo_bar>
             <pos>
-                <x>1510</x>
+                <x>1523.8444824219</x>
                 <y>90</y>
             </pos>
         </targetinfo_bar>
