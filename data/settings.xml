@@ -133,6 +133,12 @@
                 <y>330</y>
             </pos>
         </focustarget_bar>
+        <limbus_bar>
+            <pos>
+                <x>519.95668029785</x>
+                <y>51.818771362305</y>
+            </pos>
+        </limbus_bar>
         <subtarget_bar>
             <pos>
                 <x>535</x>
@@ -172,8 +178,8 @@
         </focustarget_bar>
         <limbus_bar>
             <pos>
-                <x>519.95668029785</x>
-                <y>51.818771362305</y>
+                <x>501.49732971191</x>
+                <y>51.050071716309</y>
             </pos>
         </limbus_bar>
         <subtarget_bar>
