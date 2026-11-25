@@ -48,7 +48,7 @@
             <offset_y>0</offset_y>
             <show>true</show>
             <show_th>true</show_th>
-            <spacing>1</spacing>
+            <spacing>6</spacing>
             <timer_font>Grammara</timer_font>
             <timer_size>8</timer_size>
             <timers>true</timers>
