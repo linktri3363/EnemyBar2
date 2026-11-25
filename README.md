@@ -155,6 +155,8 @@ With auto profile switching on, changing jobs can overwrite these (`//eb profile
 //eb df keep_buff [on/off]            - Keep expired debuffs with a +seconds counter
 //eb df auto [on/off]                 - Auto-learn real durations, longer or shorter (also turns keep_buff on/off)
 //eb df auto_profiles [on/off]        - Per-main-job duration profiles
+//eb df learn <1-20>                  - Average this many measurements per spell (default 5; 1 = last only)
+//eb df learned {Spell}|ID [clear]    - Show (or clear) a spell's measurements, average and timer
 //eb df {Spell Name}|ID <secs|remove> - Set or remove a duration override
 //eb df save|load|delete <name>, list - Duration profiles
 //eb df reset                         - Remove all duration overrides
@@ -185,11 +187,14 @@ status icons on the target bar:
   own with `//eb df {Stun} <seconds>`), and Sleepga / Sleepga II use Sleep / Sleep II's duration. Any other debuff that lands with no known duration (e.g.
   Jubaku, Hojo, Kurayami, Dokumori, Venom Shell, Hysteric Barrage) shows a `?` timer until it wears off (at most
   3 minutes); with `keep_buff` or `auto` on, its real duration is learned when it wears off.
-- **Learning durations** (`//eb df auto on`): when a debuff outlasts its timer, the overtime is
-  added; when the game's wear-off message arrives 2+ seconds early, the timer is shortened to
-  the real duration. Only genuine wear-offs count: deaths, overwrites and erases don't, and
-  effects that damage or actions can break (sleep, lullaby, bind, stun, petrify, terror) are
-  never shortened. Without `auto`, `keep_buff` prints the same values as `//eb df` hints.
+- **Learning durations** (`//eb df auto on`): every time the game says a debuff wore off,
+  how long it really lasted is recorded (base + overtime if it outlasted its timer, or the
+  time since it landed if it ended early; within 2s of the timer counts as on time). EB2 keeps
+  the last 5 measurements per spell (`//eb df learn <n>`) and changes the timer only when
+  their rounded average differs from the one in use. Only genuine wear-offs count: deaths,
+  overwrites and erases don't, and effects that damage or actions can break (sleep, lullaby,
+  bind, stun, petrify, terror) are never shortened. Measurements are per character, or per job
+  with `auto_profiles`. Without `auto`, `keep_buff` prints the average as a `//eb df` hint.
 - Tracked debuffs survive `//lua reload enemybar2`: they're saved on unload and restored on
   load if you're still in the same zone (within 30 minutes), with their timers intact.
 

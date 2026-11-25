@@ -31,6 +31,7 @@ local DEFAULT_CFG = {
     timers = true, timer_font = 'Grammara', timer_size = 8,
     show_th = true,
     keep_buff_after_timer = false, auto_update_enabled = false, auto_profiles_enabled = false,
+    learn_window = 5,
 }
 
 local function log(msg) windower.add_to_chat(207, 'EnemyBar Debuffs: '..tostring(msg)) end
@@ -205,21 +206,73 @@ local function handle_shot(target, shot)
     end
 end
 
+-- ---- measured-duration samples (rolling window, per character / job profile) ----
+local record_sample, current_duration
+local function samples_store()
+    if cfg().auto_profiles_enabled and current_profile then
+        _ensure_profile_tables()
+        local store = duration_profiles[owner_key].profiles
+        store[current_profile] = store[current_profile] or { spells = {} }
+        store[current_profile].samples = store[current_profile].samples or {}
+        return store[current_profile].samples, duration_profiles
+    end
+    durations[owner_key] = durations[owner_key] or {}
+    durations[owner_key].samples = durations[owner_key].samples or {}
+    return durations[owner_key].samples, durations
+end
+
+local function parse_samples(str)
+    local out = {}
+    for n in tostring(str or ''):gmatch('%d+') do out[#out+1] = tonumber(n) end
+    return out
+end
+
+local function average(list)
+    if #list == 0 then return nil end
+    local sum = 0
+    for _, v in ipairs(list) do sum = sum + v end
+    return math.floor(sum / #list + 0.5)
+end
+
+record_sample = function(sid, secs)
+    local store, file = samples_store()
+    local list = parse_samples(store[tostring(sid)])
+    list[#list+1] = secs
+    local window = math.max(1, math.floor(tonumber(cfg().learn_window) or 5))
+    while #list > window do table.remove(list, 1) end
+    store[tostring(sid)] = table.concat(list, ',')
+    config.save(file, 'all')
+    return list
+end
+
+-- Duration a new cast of this spell would use right now
+current_duration = function(sid)
+    local key = tostring(sid)
+    local o = durations[owner_key] and durations[owner_key].spells and durations[owner_key].spells[key]
+    if o then return tonumber(o) end
+    local bm = others.blue_magic[sid]
+    return (EXTREMES[sid] and EXTREMES[sid].duration) or (bm and bm.duration)
+        or (res.spells[sid] and res.spells[sid].duration) or (debuffs_map[sid] and debuffs_map[sid].duration) or 0
+end
+
 local function remove_debuff(target, effect, opts)
     opts = opts or {}
     if not (debuffed_mobs[target] and debuffed_mobs[target][effect]) then return end
     local e = debuffed_mobs[target][effect]
 
-    -- Wore off early (by the game's own wear-off message, not death/overwrite/
-    -- erase): learn the shorter duration. Effects that damage or actions can
+    -- Wore off before/at its timer (by the game's own wear-off message, not
+    -- death/overwrite/erase): record how long it really lasted. Effects that damage or actions can
     -- break are skipped, since their end says nothing about their duration.
     if type(e) == 'table' and opts.wear_off and e.applied_at and not e.expired_at
     and not e.unknown and not e.unknown_dur and not e.no_hint and not BREAKABLE[effect]
     and not (simulation_mode and player and target == player.id)
     and cfg().keep_buff_after_timer then
         local actual = os.clock() - e.applied_at
-        if (e.base_dur or 0) > 0 and actual < e.base_dur - 2 and actual >= 3 then
-            e.expired_at = e.applied_at
+        if (e.base_dur or 0) > 0 and actual >= 3 then
+            -- Every genuine wear-off is a measurement; within 2s of the timer
+            -- counts as on time so jitter never drags the average down
+            local measured = (e.base_dur - actual <= 2) and e.base_dur or actual
+            e.expired_at = os.clock() - measured
             e.base_dur = 0
         end
     end
@@ -242,15 +295,22 @@ local function remove_debuff(target, effect, opts)
             local up    = math.max(0, os.clock() - e.expired_at)
             local total = math.max(0, math.floor((tonumber(e.base_dur or 0) or 0) + up + 0.5))
             local clean = base_name(e.name)
+            -- Rolling average of the last N measurements; only change the
+            -- timer when the (rounded) average differs from the one in use
+            local samples = record_sample(sid, total)
+            local avg = average(samples)
+            local current = current_duration(sid)
             if cfg().auto_update_enabled then
-                durations[owner_key] = durations[owner_key] or {}
-                durations[owner_key].spells = durations[owner_key].spells or {}
-                durations[owner_key].spells[tostring(sid)] = total
-                config.save(durations, 'all')
-                _sync_profile(sid, total)
-                log(('Auto-updated: %s %ds'):format(clean, total))
-            else
-                log(('Timer hint: //eb df {%s} %d'):format(clean, total))
+                if avg ~= current then
+                    durations[owner_key] = durations[owner_key] or {}
+                    durations[owner_key].spells = durations[owner_key].spells or {}
+                    durations[owner_key].spells[tostring(sid)] = avg
+                    config.save(durations, 'all')
+                    _sync_profile(sid, avg)
+                    log(('Auto-updated: %s %ds (avg of %d; measured %ds)'):format(clean, avg, #samples, total))
+                end
+            elseif avg ~= current then
+                log(('Timer hint: //eb df {%s} %d (avg of %d; measured %ds)'):format(clean, avg, #samples, total))
             end
         end
     end
@@ -1113,6 +1173,8 @@ function Debuffs:handleCommand(args)
             '  keep_buff [on|off]           - keep expired debuffs with a +seconds counter',
             '  auto [on|off]                - auto-learn durations (also toggles keep_buff)',
             '  auto_profiles [on|off]       - per-main-job duration profiles',
+            '  learn <1-20>                 - average this many measurements (1 = last only)',
+            '  learned {Spell}|ID [clear]   - show (or clear) measurements for a spell',
             '  {Spell Name}|ID <secs|remove> - set/remove a duration override',
             '  save|load|delete <name>, list - duration profiles',
             '  reset                        - remove all overrides (profiles untouched)',
@@ -1183,6 +1245,24 @@ function Debuffs:handleCommand(args)
         c.keep_buff_after_timer = new_auto
         save_cfg()
         log('Auto update: '..(new_auto and 'ON' or 'OFF')..' (keep buff after timer: '..(new_auto and 'ON' or 'OFF')..')')
+
+    elseif cmd == 'learn' then
+        set_number('learn_window', commands[2], 1, 20, 'Learning window (measurements averaged)')
+
+    elseif cmd == 'learned' then
+        local clear = tostring(commands[#commands]):lower() == 'clear'
+        local q = table.concat(commands, ' ', 2, clear and (#commands - 1) or #commands)
+        if q == '' then log('Usage: //eb df learned {Spell}|ID [clear]'); return end
+        local sid, sname = resolve_spell_id(q)
+        if not sid then log('Spell not found.'); return end
+        local store, file = samples_store()
+        if clear then
+            store[tostring(sid)] = nil; config.save(file, 'all')
+            log('Cleared measurements for '..sname..'.'); return
+        end
+        local list = parse_samples(store[tostring(sid)])
+        if #list == 0 then log(sname..': no measurements yet (timer '..current_duration(sid)..'s).'); return end
+        log(('%s: %s -> avg %ds, timer %ds'):format(sname, table.concat(list, ', '), average(list), current_duration(sid)))
 
     elseif cmd == 'auto_profiles' then
         local before = c.auto_profiles_enabled
