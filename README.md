@@ -1,4 +1,4 @@
-# EnemyBar Enhanced v2.3
+# EnemyBar Enhanced v2.4
 
 An advanced enemy tracking and threat management addon for Final Fantasy XI (Windower).
 
@@ -16,6 +16,7 @@ EnemyBar Enhanced provides comprehensive enemy tracking with HP prediction, smar
 - **Kill Timer** - Track time since last kill with chain saver functionality
 - **Job-Specific Profiles** - Auto-switching configurations optimized per job
 - **Limbus Chest Tracker** - Tracks the four treasure chests in Apollyon and Temenos (formerly the LimbusHelper addon)
+- **TargetInfo** - Target's ID, hex ID and movement speed (formerly the TargetInfo addon)
 
 ### Enhanced Tracking
 - **Threat Scoring** - Advanced algorithm considering distance, HP, enmity, and debuffs
@@ -36,6 +37,7 @@ EnemyBar Enhanced provides comprehensive enemy tracking with HP prediction, smar
    - `actionTracking.lua` - Action and threat tracking
    - `bars.lua` - UI rendering system
    - `limbus.lua` - Limbus chest tracker
+   - `targetinfo.lua` - Target ID / hex ID / speed
    - `settings.xml` - Configuration file
    - Image assets (bg_cap.png, bg_body.png, fg_body.png, etc.)
 
@@ -120,6 +122,34 @@ With auto profile switching on, changing jobs can overwrite these (`//eb profile
 //eb lh debug                         - Echo incoming text in Limbus (troubleshooting)
 //eb lh help                          - Show Limbus commands
 ```
+
+### TargetInfo
+`//eb ti` and `//eb targetinfo` both work.
+```
+//eb ti on / off          - Enable or disable the module
+//eb ti id [on/off]       - Full ID line
+//eb ti hex [on/off]      - Hex ID line
+//eb ti speed [on/off]    - Movement speed line
+//eb ti name [on/off]     - Claim / target name line (off by default)
+//eb ti help              - Show TargetInfo commands
+```
+
+## TargetInfo
+
+Shows memory information for your subtarget, or your target if you have no subtarget,
+in EB2's bold outlined text:
+
+- **ID**: The full ID, which includes zone information and mob category
+- **Hex ID**: The mob's index in hex, the ID usually used for NM placeholders
+- **Speed**: Deviation from normal movement speed, green when faster (+x%), red when slower (-x%)
+- **Claim / Target** (optional): who has claim on the mob, or who it's targeting
+
+It hides when you have no target. Drag it in `//eb setup` like the other bars; its position is saved.
+Settings (`targetinfo_bar` in `data/settings.xml`): `pos`, `font`, `font_size`, `show`,
+`show_full_id`, `show_hex_id`, `show_speed`, `show_target_name`.
+
+If you used the standalone TargetInfo addon, unload it (`//lua unload targetinfo`) and remove it from
+`scripts/init.txt`.
 
 ## Limbus Chest Tracker
 
@@ -261,6 +291,7 @@ enemybar2/
 ├── actionTracking.lua     - Threat and action tracking
 ├── bars.lua              - UI rendering system  
 ├── limbus.lua            - Limbus chest tracker
+├── targetinfo.lua        - Target ID / hex ID / speed
 ├── settings.xml          - User configuration
 ├── gui_settings.lua      - Legacy compatibility
 ├── subtargetBar.lua      - Legacy compatibility  
@@ -274,7 +305,10 @@ enemybar2/
 
 ## Version History
 
-### v2.3 (Current)
+### v2.4 (Current)
+- Added the TargetInfo module (based on Arcon's TargetInfo addon), with its own draggable position
+
+### v2.3
 - `//eb set` now actually changes bar settings (it previously only redrew the bars)
 - `//eb tracking` options now take effect and are saved; added `pets`
 - Added the Limbus chest tracker module (ported from LimbusHelper v1.06): text-only, with its own draggable position
@@ -296,6 +330,7 @@ enemybar2/
 **Original Authors**: Mmckee, Akaden, Twisted, Linktri  
 **Enhanced Version**: Claude (AI Assistant)  
 **Limbus module**: Based on LimbusHelper by Kaius @ Bahamut and Linktri @ Asura  
+**TargetInfo module**: Based on TargetInfo by Arcon (Copyright © 2013-2017, Windower; BSD 3-clause license)  
 **Framework**: Windower 4 for Final Fantasy XI
 
 ## License
@@ -308,4 +343,4 @@ For issues or feature requests, refer to the Windower community forums or FFXI a
 
 ---
 
-*EnemyBar Enhanced v2.3 - Bringing modern performance and features to classic FFXI enemy tracking.*
+*EnemyBar Enhanced v2.4 - Bringing modern performance and features to classic FFXI enemy tracking.*

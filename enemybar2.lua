@@ -1,11 +1,11 @@
 --[[
 Enhanced EnemyBar2 with HP Prediction, Smart Filtering, Profile System, and Kill Timer
-Version 2.3 - Limbus chest tracker module
+Version 2.4 - Limbus chest tracker and TargetInfo modules
 --]]
 
 _addon.name = 'enemybar2'
 _addon.author = 'Mmckee, Akaden, Twisted, Linktri, Claude'
-_addon.version = '2.3.0'
+_addon.version = '2.4.0'
 _addon.language = 'English'
 _addon.commands = {'enemybar','eb'}
 
@@ -20,6 +20,7 @@ local packets = require('packets')
 require('bars')
 require('actionTracking')
 require('limbus')
+require('targetinfo')
 
 -- Aggro tracking scope. Loaded from settings.tracking (see defaults below)
 -- and applied by cachePartyMembers / scanClaimedMobs / the threat score.
@@ -291,8 +292,9 @@ function EnemyBar:initializeBars()
             end
         end
 
-        -- Limbus chest tracker (limbus.lua)
+        -- Text modules (limbus.lua, targetinfo.lua)
         Limbus:initialize(settings.limbus_bar)
+        TargetInfo:initialize(settings.targetinfo_bar)
     end)
     
     if not success then
@@ -790,6 +792,8 @@ function EnemyBar:handleCommand(c, ...)
             self:handleTrackingCommand(args)
         elseif c == 'limbus' or c == 'lh' then
             Limbus:handleCommand(args)
+        elseif c == 'targetinfo' or c == 'ti' then
+            TargetInfo:handleCommand(args)
         else
             windower.add_to_chat(123, 'Unknown command: ' .. c .. '. Use //eb help for available commands.')
         end
@@ -959,7 +963,7 @@ end
 
 function EnemyBar:showHelp()
     local helptext = {
-        'Enemy Bar Enhanced v2.3 - Command List:',
+        'Enemy Bar Enhanced v2.4 - Command List:',
         '1. profile/p [tank/healer/dps/support/list/auto] - Manage job profiles',
         '2. set/s [setting] [target/t/subtarget/st/focustarget/ft/aggro/a/all] [value] - Configure bars (//eb set for list)',
         '3. focustarget/ft/f [name/id/clear] - Set focus target',
@@ -968,9 +972,11 @@ function EnemyBar:showHelp()
         '6. alert/alerts/fa [toggle/sounds/duration/emphasize/test/status] - Action alert system',
         '7. tracking [party/alliance/pets/outside] [on/off] - Aggro tracking scope',
         '8. limbus/lh [reset/sector/show/hide/toggle/on/off/pos/debug] - Limbus chest tracker (//eb lh help)',
+        '9. targetinfo/ti [on/off/id/hex/speed/name] - Target ID, hex ID and speed (//eb ti help)',
         '',
-        'NEW in v2.3:',
-        '• Limbus chest tracker for Apollyon and Temenos (formerly LimbusHelper)'
+        'NEW in v2.3 / v2.4:',
+        '• Limbus chest tracker for Apollyon and Temenos (formerly LimbusHelper)',
+        '• TargetInfo: target ID, hex ID and speed (formerly the TargetInfo addon)'
     }
     for _, line in ipairs(helptext) do
         windower.add_to_chat(207, line)
@@ -1144,6 +1150,10 @@ local function mainUpdate()
     if not ok then
         windower.add_to_chat(123, 'EnemyBar: Limbus update error - ' .. tostring(lerr))
     end
+    ok, lerr = pcall(TargetInfo.update, TargetInfo, EnemyBar.state.setup)
+    if not ok then
+        windower.add_to_chat(123, 'EnemyBar: TargetInfo update error - ' .. tostring(lerr))
+    end
     
     if EnemyBar.player_id then
         EnemyBar:scanClaimedMobs()
@@ -1224,7 +1234,7 @@ windower.register_event('mouse', function(type, x, y, delta, blocked)
     if type == 0 then -- Mouse move
         if dragged then
             -- Anchor = whatever is being dragged: the first bar of a set, or the Limbus module
-            local anchor = dragged.limbus and Limbus or dragged.bars[1]
+            local anchor = dragged.module or dragged.bars[1]
             local d_x, d_y = 0, 0
             if drag_snap_key_down then
                 d_x = math.floor(((x - dragged.x) + anchor.x)/10)*10 - anchor.x
@@ -1234,8 +1244,8 @@ windower.register_event('mouse', function(type, x, y, delta, blocked)
                 d_y = y - dragged.y
             end
 
-            if dragged.limbus then
-                Limbus:move(Limbus.x + d_x, Limbus.y + d_y)
+            if dragged.module then
+                dragged.module:move(dragged.module.x + d_x, dragged.module.y + d_y)
             else
                 for i, bar in ipairs(dragged.bars) do
                     bars.move(bar, bar.x + d_x, bar.y + d_y)
@@ -1265,9 +1275,12 @@ windower.register_event('mouse', function(type, x, y, delta, blocked)
             end
         end
 
-        if Limbus:hover(x, y) then
-            dragged = {limbus = true, x = x, y = y}
-            return true
+        -- Text modules (each moves on its own)
+        for _, module in ipairs({Limbus, TargetInfo}) do
+            if module:hover(x, y) then
+                dragged = {module = module, x = x, y = y}
+                return true
+            end
         end
 
     elseif type == 2 then -- Mouse up
@@ -1277,6 +1290,7 @@ windower.register_event('mouse', function(type, x, y, delta, blocked)
             settings.focustarget_bar.pos = {x=EnemyBar.bars.focustarget.x, y=EnemyBar.bars.focustarget.y}
             settings.aggro_bar.pos = {x=EnemyBar.bars.aggro[1].x, y=EnemyBar.bars.aggro[1].y}
             settings.limbus_bar.pos = {x=Limbus.x, y=Limbus.y}
+            settings.targetinfo_bar.pos = {x=TargetInfo.x, y=TargetInfo.y}
             settings:save()
             dragged = nil
             return true
@@ -1336,6 +1350,11 @@ local defaults = {
         count=6, stack_dir='down', stack_padding=27
     },
     tracking = {alliance=true, pets=true, outside=false},
+    targetinfo_bar = {
+        pos={x=1500,y=65},
+        font='Grammara', font_size=8,
+        show=true, show_full_id=true, show_hex_id=true, show_speed=true, show_target_name=false
+    },
     limbus_bar = {
         pos={x=150,y=500},
         font='Grammara', font_size=8, row_spacing=14,
@@ -1365,5 +1384,5 @@ end)
 EnemyBar:cachePartyMembers()
 
 -- Welcome message
-windower.add_to_chat(207, 'EnemyBar Enhanced v2.3 loaded! Now with the Limbus chest tracker (//eb lh help).')
+windower.add_to_chat(207, 'EnemyBar Enhanced v2.4 loaded! Limbus tracker (//eb lh help) and TargetInfo (//eb ti help) included.')
 windower.add_to_chat(207, 'Use //eb help for commands, //eb profile list for job profiles.')
