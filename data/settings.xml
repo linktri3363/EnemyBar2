@@ -171,6 +171,15 @@
             <show_action>false</show_action>
             <show_target>false</show_target>
         </aggro_bar>
+        <debuff_details>
+            <pos>
+                <x>1510</x>
+                <y>150</y>
+            </pos>
+        </debuff_details>
+        <debuffs>
+            <x>193</x>
+        </debuffs>
         <focustarget_bar>
             <pos>
                 <x>650</x>
@@ -206,6 +215,12 @@
             <show_target>false</show_target>
             <width>800</width>
         </target_bar>
+        <targetinfo_bar>
+            <pos>
+                <x>1510</x>
+                <y>90</y>
+            </pos>
+        </targetinfo_bar>
     </judgespedd>
     <linktri>
         <aggro_bar>
@@ -221,6 +236,7 @@
             </pos>
         </debuff_details>
         <debuffs>
+            <spacing>10</spacing>
             <x>193</x>
         </debuffs>
         <focustarget_bar>
