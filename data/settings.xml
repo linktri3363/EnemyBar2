@@ -54,12 +54,12 @@
         </focustarget_bar>
         <limbus_bar>
             <font>Grammara</font>
-            <font_size>10</font_size>
+            <font_size>8</font_size>
             <pos>
                 <x>150</x>
                 <y>500</y>
             </pos>
-            <row_spacing>16</row_spacing>
+            <row_spacing>14</row_spacing>
             <show>true</show>
             <show_anywhere>false</show_anywhere>
         </limbus_bar>
