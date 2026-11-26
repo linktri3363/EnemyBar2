@@ -15,6 +15,7 @@
                 <x>650</x>
                 <y>160</y>
             </pos>
+            <prediction_x>312.30621337891</prediction_x>
             <show>true</show>
             <show_action>true</show_action>
             <show_alerts>false</show_alerts>
@@ -238,8 +239,8 @@
         </aggro_bar>
         <debuff_details>
             <pos>
-                <x>1510</x>
-                <y>150</y>
+                <x>1514.6148681641</x>
+                <y>160.76248168945</y>
             </pos>
         </debuff_details>
         <debuffs>
@@ -278,14 +279,14 @@
                 <x>690</x>
                 <y>70</y>
             </pos>
-            <prediction_x>574.54803466797</prediction_x>
+            <prediction_x>590.70001220703</prediction_x>
             <show_kill_timer>true</show_kill_timer>
             <width>800</width>
         </target_bar>
         <targetinfo_bar>
             <pos>
-                <x>1523.8444824219</x>
-                <y>90</y>
+                <x>1518.4604492188</x>
+                <y>96.150001525879</y>
             </pos>
         </targetinfo_bar>
     </linktri>
