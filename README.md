@@ -272,6 +272,10 @@ remove it from `scripts/init.txt` so the two don't both draw an overlay.
 
 ## Job Profiles
 
+Profiles adjust details like widths, alerts and what each bar displays. They never turn a bar
+on or off: whether a bar is shown is your choice (`//eb set show <bar> on/off`, e.g.
+`//eb set show st off` to hide the subtarget bar) and stays that way through job changes.
+
 ### Tank Profile (PLD, NIN, RUN)
 - **Focus**: Threat management and party protection
 - **Features**: Enhanced enmity tracking, action alerts, expanded aggro list

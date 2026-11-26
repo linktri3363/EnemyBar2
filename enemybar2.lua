@@ -88,7 +88,6 @@ function ProfileManager:initializeProfiles()
                     color = {alpha=255, red=200, green=100, blue=100}
                 },
                 aggro_bar = {
-                    show = true,
                     count = 8,
                     show_target = true,
                     show_debuff = true,
@@ -99,7 +98,6 @@ function ProfileManager:initializeProfiles()
                     stack_dir = 'down'
                 },
                 subtarget_bar = {
-                    show = false,
                     show_kill_timer = false
                 },
                 focustarget_bar = {
@@ -131,7 +129,6 @@ function ProfileManager:initializeProfiles()
                     color = {alpha=255, red=100, green=200, blue=100}
                 },
                 aggro_bar = {
-                    show = true,
                     count = 4,
                     show_action = true,
                     show_target = true,
@@ -140,7 +137,6 @@ function ProfileManager:initializeProfiles()
                     show_kill_timer = false
                 },
                 subtarget_bar = {
-                    show = true,
                     show_action = true,
                     show_kill_timer = false
                 },
@@ -168,7 +164,6 @@ function ProfileManager:initializeProfiles()
                     color = {alpha=255, red=255, green=150, blue=100}
                 },
                 aggro_bar = {
-                    show = true,
                     count = 6,
                     show_target = false,
                     show_debuff = true,
@@ -177,7 +172,6 @@ function ProfileManager:initializeProfiles()
                     show_kill_timer = false
                 },
                 subtarget_bar = {
-                    show = true,
                     show_debuff = true,
                     show_prediction = true,
                     show_kill_timer = false
@@ -204,7 +198,6 @@ function ProfileManager:initializeProfiles()
                     show_kill_timer = true,
                 },
                 aggro_bar = {
-                    show = true,
                     count = 10,
                     show_target = true,
                     show_action = true,
@@ -214,7 +207,6 @@ function ProfileManager:initializeProfiles()
                     show_kill_timer = false
                 },
                 subtarget_bar = {
-                    show = true,
                     show_action = true,
                     show_target = true,
                     show_prediction = true,
@@ -711,7 +703,11 @@ function ProfileManager:applyProfile(profile_name)
     for bar_type, bar_settings in pairs(profile.settings) do
         if settings[bar_type] then
             for setting, value in pairs(bar_settings) do
-                settings[bar_type][setting] = value
+                -- Never override whether a bar is shown: that's the player's
+                -- choice (//eb set show <bar> on/off) and must survive job changes
+                if setting ~= 'show' then
+                    settings[bar_type][setting] = value
+                end
             end
         end
     end
