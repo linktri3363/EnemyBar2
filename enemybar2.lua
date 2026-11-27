@@ -288,6 +288,14 @@ function EnemyBar:initializeBars()
         -- Text modules (limbus.lua, targetinfo.lua)
         Limbus:initialize(settings.limbus_bar)
         TargetInfo:initialize(settings.targetinfo_bar)
+
+        -- Windower draws images/texts in creation order, newest on top. The bars
+        -- were just recreated (profile switch on job change, bar setting change,
+        -- settings reload), so they now cover the older debuff icons and timers.
+        -- Clearing built_for makes debuffs.lua rebuild them on its next update,
+        -- putting them back on top of the bar.
+        if Debuffs then Debuffs.built_for = nil end
+        if DebuffDetails then DebuffDetails.built_for = nil end
     end)
     
     if not success then
